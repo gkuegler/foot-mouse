@@ -13,7 +13,7 @@ upload will fail if tried through COM1
 #define DGTL_READ_PRESSED 0
 #define PRESS 0
 #define RELEASE 1
-#define DEBUG 0
+#define DEBUG 1
 
 bool bstate = DGTL_READ_PRESSED;
 byte i = 0;
@@ -37,8 +37,8 @@ void log(T msg)
 
 void sendMouseEvent(int type)
 {
-    if (digitalRead(ENABLE_PIN) == 1)
-    {
+    //if (digitalRead(ENABLE_PIN) == 1)
+    //{
         if (type == PRESS)
         {
             Mouse.press();
@@ -47,7 +47,7 @@ void sendMouseEvent(int type)
         {
             Mouse.release();
         }
-    }
+    //}
     delay(1);
 }
 
@@ -80,12 +80,13 @@ void bChange()
 void setup()
 {
     Serial.begin(9600);
-
+    Serial.println("Starting Serial Connection...");
     // Setup for the mouseclick
-    pinMode(BUTTON_PIN, INPUT_PULLUP); // Pin for the button clicks
-    pinMode(ENABLE_PIN, INPUT_PULLUP); // Bring pin low to mouse functions
+    pinMode(BUTTON_PIN, INPUT); // Pin for the button clicks
+    //pinMode(ENABLE_PIN, INPUT_PULLUP); // Bring pin low to mouse functions
     attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), bChange, CHANGE);
     Mouse.begin();
+    Serial.println("Starting Mouse Class");
 }
 
 void loop()
