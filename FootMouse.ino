@@ -2,18 +2,31 @@
 
 CODE FOR TEENSY
 
+NOTE:
+To get serial communications from the board,
+you must set usb type under Tools -> Board -> USB Type to include
+a Serial library.
+e.g. "Serial + Keyboard + Mouse + Joystick"
+
+
 */
 
 #include <Mouse.h>
 
-#define BOUNCE_TIME 2 //ms
+#define BOUNCE_TIME 2 // milliseconds
+#define MIDDLE_CLICK_SLEEP_TIME 3500 // milliseconds
+
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
-#define ENABLE_PIN 3
+#define ENABLE_PIN 3 // only used on model with a switch, depreciated
+
 #define DGTL_READ_PRESSED_STATE 0
 #define PRESS 0
 #define RELEASE 1
+
 #define DEBUG 1
+// Comment out below line to disable middle click
+#define MIDDLE_CLICK_ENABLED
 
 
 // Variables for left button
@@ -108,7 +121,6 @@ void buttonChangedMiddle()
     }
 }
 
-
 void setup()
 {
     Serial.begin(9600);
@@ -118,7 +130,9 @@ void setup()
     pinMode(MBUTTON_PIN, INPUT); // Pin for the button clicks
     //pinMode(ENABLE_PIN, INPUT_PULLUP); // Bring pin low to mouse functions
     attachInterrupt(digitalPinToInterrupt(LBUTTON_PIN), buttonChangedLeft, CHANGE);
+#ifdef MIDDLE_CLICK_ENABLED
     attachInterrupt(digitalPinToInterrupt(MBUTTON_PIN), buttonChangedMiddle, CHANGE);
+#endif
     Mouse.begin();
     Serial.println("Starting Mouse Class");
 }
@@ -143,24 +157,24 @@ void loop()
         iButtonResetCountLeft = 0;
     }
 
-    // // Every 50 cycles run a check
-    // if (iButtonResetCountMiddle++ == 100 && PressedMiddle)
-    // {
-    //     // Deactivate the middle mouse, if the pedal has been lifted
-    //     // for more than 4 seconds, by sending
-    //     // a middle mouse release message
-    //     if(0 < millis() - (ReleasedTimeMiddle + 4000))
-    //     {
-    //         bStateMiddle = digitalRead(MBUTTON_PIN);
-    //         if (bStateMiddle == DGTL_READ_PRESSED_STATE)
-    //         {
-    //             // setting the 'PressedMiddle' equal to 0 is not entirely necessary
-    //             // however this will prevent an extraneous mouse release message
-    //             // from being sent when I put my foot back on the pedal
-    //             // ActivatedMiddle = 0;
-    //             Mouse.release(MOUSE_MIDDLE);
-    //         }
-    //     }
-    //     iButtonResetCountMiddle = 0;
-    // }
+    // Every 50 cycles run a check
+    if (iButtonResetCountMiddle++ == 100)
+    {
+        // Deactivate the middle mouse, if the pedal has been lifted
+        // for more than 4 seconds, by sending
+        // a middle mouse release message
+        bStateMiddle = digitalRead(MBUTTON_PIN);
+        if (bStateMiddle == DGTL_READ_PRESSED_STATE)
+        {
+            if((MIDDLE_CLICK_SLEEP_TIME < millis() - ReleasedTimeMiddle) && (PressedMiddle))
+            {
+                // setting the 'PressedMiddle' equal to 0 is not entirely necessary
+                // however this will prevent an extraneous mouse release message
+                // from being sent when I put my foot back on the pedal
+                // ActivatedMiddle = 0;
+                Mouse.release(MOUSE_MIDDLE);
+            }
+        }
+        iButtonResetCountMiddle = 0;
+    }
 }
