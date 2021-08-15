@@ -29,7 +29,20 @@ e.g. "Serial + Keyboard + Mouse + Joystick"
 // Comment out below line to disable middle click
 #define MIDDLE_CLICK_ENABLED
 
+// Writing the values is redundant
+// outside programs need to know these values
+// so i have them listed explicitly
+enum message_value {
+    LEFT_CLICK = 0,
+    LEFT_PRESS = 1,
+    LEFT_RELEASE = 2,
+    MIDDLE_CLICK = 3,
+    MIDDLE_PRESS = 4,
+    MIDDLE_RELEASE = 5
+};
+
 byte iButtonResetCount = 0; // main loop will reset button after count
+int IncomingByte = 0;
 
 // Variables for left button
 bool bStateLeft = DGTL_READ_PRESSED_STATE;
@@ -178,4 +191,23 @@ void loop()
         }
         iButtonResetCountMiddle = 0;
     }
+
+    // Enable programs on my PC to alter the behavior
+    // of my foot mouse.
+    // Check the serial port for incoming bites every loop
+    // if (Serial.available())
+    // {
+    IncomingByte = Serial.read();
+    if (-1 != IncomingByte)
+    {
+        switch (IncomingByte)
+        {
+            case MIDDLE_RELEASE:
+                Mouse.release(MOUSE_MIDDLE);
+                break;
+            default:
+                break;
+        }
+    }
+    // }
 }
