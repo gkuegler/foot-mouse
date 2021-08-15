@@ -1,29 +1,45 @@
 /*
 
-Typical is to upload via COM8
-upload will fail if tried through COM1
+CODE FOR TEENSY
 
 */
 
 #include <Mouse.h>
 
 #define BOUNCE_TIME 2 //ms
-#define BUTTON_PIN 2
+#define LBUTTON_PIN 2
+#define MBUTTON_PIN 5
 #define ENABLE_PIN 3
-#define DGTL_READ_PRESSED 0
+#define DGTL_READ_PRESSED_STATE 0
 #define PRESS 0
 #define RELEASE 1
 #define DEBUG 1
 
-bool bstate = DGTL_READ_PRESSED;
-byte i = 0;
 
-volatile bool pressed = 0; // 0 is not pressed, IE pulled high
-unsigned long change_time = 0;
-unsigned long interrupt_time = 0;
-byte pCount = 0;
-byte rCount = 0;
+// Variables for left button
+byte iButtonResetCountLeft = 0; // main loop will reset button after count
+bool bStateLeft = DGTL_READ_PRESSED_STATE;
 
+volatile bool PressedLeft = 0; // 0 is not PressedLeft, IE pulled high
+unsigned long ChangeTimeLeft = 0;
+unsigned long InterruptTimeLeft = 0;
+byte pCountLeft = 0;
+byte rCountLeft = 0;
+
+// Variables for middle button
+byte iButtonResetCountMiddle = 0; // main loop will reset button after count
+bool bStateMiddle = DGTL_READ_PRESSED_STATE;
+
+volatile bool PressedMiddle = 0; // 0 is not PressedLeft, IE pulled high
+volatile bool ActivatedMiddle = 0; // 0 is not PressedLeft, IE pulled high
+unsigned long ChangeTimeMiddle = 0;
+unsigned long ReleasedTimeMiddle = 0;
+unsigned long InterruptTimeMiddle = 0;
+unsigned long ResetTimeMiddle = 0;
+byte pCountMiddle = 0;
+byte rCountMiddle = 0;
+
+// Template for debugging to serial monitor
 template <class T>
 void log(T msg)
 {
@@ -35,69 +51,116 @@ void log(T msg)
     }
 }
 
-void sendMouseEvent(int type)
-{
-    //if (digitalRead(ENABLE_PIN) == 1)
-    //{
-        if (type == PRESS)
-        {
-            Mouse.press();
-        }
-        else
-        {
-            Mouse.release();
-        }
-    //}
-    delay(1);
-}
-
-void bChange()
+void buttonChangedLeft()
 {
     //Serial.println("Change"); // for debugging
-    interrupt_time = millis();
-    if (pressed == 0) {
-        log("change int press");
-        if (interrupt_time - change_time > BOUNCE_TIME)
+    InterruptTimeLeft = millis();
+    if (PressedLeft == 0) {
+        log("change int left press");
+        if (InterruptTimeLeft - ChangeTimeLeft > BOUNCE_TIME)
         {
-            sendMouseEvent(PRESS);
-            pressed = 1;
-            change_time = interrupt_time;
-            log(++pCount); // for debugging
+            Mouse.press(MOUSE_LEFT);
+            delay(1);
+            PressedLeft = 1;
+            ChangeTimeLeft = InterruptTimeLeft;
+            log(++pCountLeft); // for debugging
         }
     }
-    if (pressed == 1) {
-        log("change int release");
-        if (interrupt_time - change_time > BOUNCE_TIME)
+    if (PressedLeft == 1) {
+        log("change int left release");
+        if (InterruptTimeLeft - ChangeTimeLeft > BOUNCE_TIME)
         {
-            sendMouseEvent(RELEASE);
-            pressed = 0;
-            change_time = interrupt_time;
-            log(++rCount); // for debugging
+            Mouse.release(MOUSE_LEFT);
+            delay(1);
+            PressedLeft = 0;
+            ChangeTimeLeft = InterruptTimeLeft;
+            log(++rCountLeft); // for debugging
         }
     }
 }
+
+void buttonChangedMiddle()
+{
+    //Serial.println("Change"); // for debugging
+    InterruptTimeMiddle = millis();
+    if (PressedMiddle == 0) {
+        log("change int middle press");
+        if (InterruptTimeMiddle - ChangeTimeMiddle > BOUNCE_TIME)
+        {
+            Mouse.press(MOUSE_MIDDLE);
+            delay(1);
+            PressedMiddle = 1;
+            ChangeTimeMiddle = InterruptTimeMiddle;
+            log(++pCountMiddle); // for debugging
+        }
+    }
+    if (PressedMiddle == 1) {
+        log("change int middle release");
+        if (InterruptTimeMiddle - ChangeTimeMiddle > BOUNCE_TIME)
+        {
+            Mouse.release(MOUSE_MIDDLE);
+            delay(1);
+            PressedMiddle = 0;
+            ChangeTimeMiddle = InterruptTimeMiddle;
+            ReleasedTimeMiddle = InterruptTimeMiddle;
+            log(++rCountMiddle); // for debugging
+        }
+    }
+}
+
 
 void setup()
 {
     Serial.begin(9600);
     Serial.println("Starting Serial Connection...");
     // Setup for the mouseclick
-    pinMode(BUTTON_PIN, INPUT); // Pin for the button clicks
+    pinMode(LBUTTON_PIN, INPUT); // Pin for the button clicks
+    pinMode(MBUTTON_PIN, INPUT); // Pin for the button clicks
     //pinMode(ENABLE_PIN, INPUT_PULLUP); // Bring pin low to mouse functions
-    attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), bChange, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(LBUTTON_PIN), buttonChangedLeft, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(MBUTTON_PIN), buttonChangedMiddle, CHANGE);
     Mouse.begin();
     Serial.println("Starting Mouse Class");
 }
 
 void loop()
 {
-    if (i++ == 50)
+    if (iButtonResetCountLeft++ == 100)
     {
-        i = 0;
-        bstate = digitalRead(BUTTON_PIN);
-        if (bstate == !DGTL_READ_PRESSED)
+        bStateLeft = digitalRead(LBUTTON_PIN);
+        bStateMiddle = digitalRead(MBUTTON_PIN);
+        // Reset the button state to not pressed
+        // if debounced routine bugged or some interrupts were missed
+        if (bStateLeft == !DGTL_READ_PRESSED_STATE)
         {
-            pressed = 0;
+            PressedLeft = 0;
         }
+
+        if (bStateMiddle == !DGTL_READ_PRESSED_STATE)
+        {
+            PressedMiddle = 0;
+        }
+        iButtonResetCountLeft = 0;
     }
+
+    // // Every 50 cycles run a check
+    // if (iButtonResetCountMiddle++ == 100 && PressedMiddle)
+    // {
+    //     // Deactivate the middle mouse, if the pedal has been lifted
+    //     // for more than 4 seconds, by sending
+    //     // a middle mouse release message
+    //     if(0 < millis() - (ReleasedTimeMiddle + 4000))
+    //     {
+    //         bStateMiddle = digitalRead(MBUTTON_PIN);
+    //         if (bStateMiddle == DGTL_READ_PRESSED_STATE)
+    //         {
+    //             // setting the 'PressedMiddle' equal to 0 is not entirely necessary
+    //             // however this will prevent an extraneous mouse release message
+    //             // from being sent when I put my foot back on the pedal
+    //             // ActivatedMiddle = 0;
+    //             Mouse.release(MOUSE_MIDDLE);
+    //         }
+    //     }
+    //     iButtonResetCountMiddle = 0;
+    // }
 }
