@@ -25,12 +25,13 @@ e.g. "Serial + Keyboard + Mouse + Joystick"
 #define RELEASE 1
 
 #define DEBUG 1
+#define NDEBUG
 // Comment out below line to disable middle click
 #define MIDDLE_CLICK_ENABLED
 
+byte iButtonResetCount = 0; // main loop will reset button after count
 
 // Variables for left button
-byte iButtonResetCountLeft = 0; // main loop will reset button after count
 bool bStateLeft = DGTL_READ_PRESSED_STATE;
 
 volatile bool PressedLeft = 0; // 0 is not PressedLeft, IE pulled high
@@ -139,7 +140,7 @@ void setup()
 
 void loop()
 {
-    if (iButtonResetCountLeft++ == 100)
+    if (iButtonResetCount++ == 100)
     {
         bStateLeft = digitalRead(LBUTTON_PIN);
         bStateMiddle = digitalRead(MBUTTON_PIN);
@@ -154,7 +155,7 @@ void loop()
         {
             PressedMiddle = 0;
         }
-        iButtonResetCountLeft = 0;
+        iButtonResetCount = 0;
     }
 
     // Every 50 cycles run a check
