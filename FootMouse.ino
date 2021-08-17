@@ -45,11 +45,19 @@ enum return_message_value {
     LEFT_RELEASE = 2,
     MIDDLE_CLICK = 3,
     MIDDLE_PRESS = 4,
-    MIDDLE_RELEASE = 5
+    MIDDLE_RELEASE = 5,
+    MIDDLE_MODE_SWITCH = 6,
 };
 
 enum send_message_value {
     MIDDLE_DISABLE = 11,
+};
+
+enum middle_function {
+    MODE_MIDDLE,
+    MODE_MIDDLE_INVERTED,
+    MODE_RIGHT,
+    MODE_RIGHT_INVERTED
 };
 
 byte iButtonResetCount = 0; // main loop will reset button after count
@@ -65,6 +73,7 @@ byte pCountLeft = 0;
 byte rCountLeft = 0;
 
 // Variables for middle button
+byte MiddleFunction = MODE_MIDDLE;
 byte iButtonResetCountMiddle = 0; // main loop will reset button after count
 bool bStateMiddle = DGTL_READ_PRESSED_STATE;
 volatile bool bPressedFlag = 0;
@@ -89,17 +98,6 @@ void log(T msg)
         // if DEBUG is on this will fail if no serial monitor
         Serial.println(msg);
     }
-}
-
-bool checkIfMouseInArea()
-{   
-    Serial.send_now();
-    Serial.write(MIDDLE_DISABLE);
-    Serial.available();
-    IncomingByte = Serial.read();
-
-    if (MIDDLE_DISABLE == IncomingByte) return true;
-    else return false;
 }
 
 void buttonChangedLeft()
@@ -138,11 +136,17 @@ void buttonChangedMiddle()
         // log("change int middle press");
         if (InterruptTimeMiddle - ChangeTimeMiddle > BOUNCE_TIME)
         {
-            // Don't press the middle mouse button
-            // if in the designated area
+            switch (MiddleFunction)
+            {
+                case MODE_MIDDLE:
+                    Mouse.press(MOUSE_MIDDLE);
+                    break;
+                case MODE_RIGHT_INVERTED:
+                    Mouse.release(MOUSE_RIGHT);
+                    break;
+            }
             // Mouse.press(MOUSE_MIDDLE);
-            // delay(1);
-            bPressedFlag = 1;
+            delay(1);
             PressedMiddle = 1;
             ChangeTimeMiddle = InterruptTimeMiddle;
             // log(++pCountMiddle); // for debugging
@@ -152,7 +156,16 @@ void buttonChangedMiddle()
         // log("change int middle release");
         if (InterruptTimeMiddle - ChangeTimeMiddle > BOUNCE_TIME)
         {
-            Mouse.release(MOUSE_MIDDLE);
+            switch (MiddleFunction)
+            {
+                case MODE_MIDDLE:
+                    Mouse.release(MOUSE_MIDDLE);
+                    break;
+                case MODE_RIGHT_INVERTED:
+                    Mouse.press(MOUSE_RIGHT);
+                    break;
+            }
+            // Mouse.release(MOUSE_MIDDLE);
             delay(1);
             PressedMiddle = 0;
             ChangeTimeMiddle = InterruptTimeMiddle;
@@ -180,16 +193,6 @@ void setup()
 
 void loop()
 {
-    // Pick up the ISR flag press the middle button
-    if (bPressedFlag)
-    {
-        if (checkIfMouseInArea())
-        {
-            Mouse.press(MOUSE_MIDDLE);
-            bPressedFlag = 0;
-        }
-
-    }
 
     if (iButtonResetCount++ == 100)
     {
@@ -233,19 +236,29 @@ void loop()
     // Enable programs on my PC to alter the behavior
     // of my foot mouse.
     // Check the serial port for incoming bites every loop
-    // if (Serial.available())
-    // {
-    // IncomingByte = Serial.read();
-    // if (-1 != IncomingByte)
-    // {
-    //     switch (IncomingByte)
-    //     {
-    //         case MIDDLE_RELEASE:
-    //             Mouse.release(MOUSE_MIDDLE);
-    //             break;
-    //         default:
-    //             break;
-    //     }
-    // }
-    // }
+    if (Serial.available())
+    {
+        IncomingByte = Serial.read();
+        if (-1 != IncomingByte)
+        {
+            switch (IncomingByte)
+            {
+                case MIDDLE_PRESS:
+                    Mouse.press(MOUSE_MIDDLE);
+                    break;
+                case MIDDLE_MODE_SWITCH:
+                    if (MiddleFunction == MODE_MIDDLE)
+                    {
+                        MiddleFunction = MODE_RIGHT_INVERTED;
+                    }
+                    else
+                    {
+                        MiddleFunction = MODE_MIDDLE;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
 }
