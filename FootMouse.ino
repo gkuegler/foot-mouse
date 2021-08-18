@@ -54,10 +54,10 @@ enum send_message_value {
 };
 
 enum middle_function {
-    MODE_MIDDLE,
-    MODE_MIDDLE_INVERTED,
-    MODE_RIGHT,
-    MODE_RIGHT_INVERTED
+    MODE_MIDDLE = 20,
+    MODE_MIDDLE_INVERTED = 21,
+    MODE_RIGHT = 22,
+    MODE_RIGHT_INVERTED = 23
 };
 
 byte iButtonResetCount = 0; // main loop will reset button after count
@@ -141,6 +141,12 @@ void buttonChangedMiddle()
                 case MODE_MIDDLE:
                     Mouse.press(MOUSE_MIDDLE);
                     break;
+                case MODE_MIDDLE_INVERTED:
+                    Mouse.release(MOUSE_MIDDLE);
+                    break;
+                case MODE_RIGHT:
+                    Mouse.press(MOUSE_RIGHT);
+                    break;
                 case MODE_RIGHT_INVERTED:
                     Mouse.release(MOUSE_RIGHT);
                     break;
@@ -160,6 +166,12 @@ void buttonChangedMiddle()
             {
                 case MODE_MIDDLE:
                     Mouse.release(MOUSE_MIDDLE);
+                    break;
+                case MODE_MIDDLE_INVERTED:
+                    Mouse.press(MOUSE_MIDDLE);
+                    break;
+                case MODE_RIGHT:
+                    Mouse.release(MOUSE_RIGHT);
                     break;
                 case MODE_RIGHT_INVERTED:
                     Mouse.press(MOUSE_RIGHT);
@@ -243,18 +255,17 @@ void loop()
         {
             switch (IncomingByte)
             {
-                case MIDDLE_PRESS:
-                    Mouse.press(MOUSE_MIDDLE);
+                case MODE_MIDDLE:
+                    MiddleFunction = MODE_MIDDLE;
                     break;
-                case MIDDLE_MODE_SWITCH:
-                    if (MiddleFunction == MODE_MIDDLE)
-                    {
-                        MiddleFunction = MODE_RIGHT_INVERTED;
-                    }
-                    else
-                    {
-                        MiddleFunction = MODE_MIDDLE;
-                    }
+                case MODE_MIDDLE_INVERTED:
+                    MiddleFunction = MODE_MIDDLE_INVERTED;
+                    break;
+                case MODE_RIGHT:
+                    MiddleFunction = MODE_RIGHT;
+                    break;
+                case MODE_RIGHT_INVERTED:
+                    MiddleFunction = MODE_RIGHT_INVERTED;
                     break;
                 default:
                     break;
