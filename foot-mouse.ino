@@ -224,12 +224,11 @@ void loop()
         iButtonResetCount = 0;
     }
 
-    // Every 50 cycles run a check
+    // Deactivate the middle mouse, if the pedal has been lifted
+    // for more than 4 seconds, by sending
+    // a middle mouse release message
     if (iButtonResetCountMiddle++ == 100)
     {
-        // Deactivate the middle mouse, if the pedal has been lifted
-        // for more than 4 seconds, by sending
-        // a middle mouse release message
         bStateMiddle = digitalRead(MBUTTON_PIN);
         if (bStateMiddle == DGTL_READ_PRESSED_STATE)
         {
@@ -239,6 +238,8 @@ void loop()
                 // however this will prevent an extraneous mouse release message
                 // from being sent when I put my foot back on the pedal
                 // ActivatedMiddle = 0;
+                Mouse.release(MOUSE_MIDDLE);
+                Mouse.release(MOUSE_MIDDLE);
                 Mouse.release(MOUSE_MIDDLE);
             }
         }
