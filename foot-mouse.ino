@@ -81,7 +81,6 @@ volatile bool bPressedFlag = 0;
 volatile bool PressedMiddle = 0; // 0 is not PressedLeft, IE pulled high
 volatile bool ActivatedMiddle = 0; // 0 is not PressedLeft, IE pulled high
 unsigned long ChangeTimeMiddle = 0;
-unsigned long ReleasedTimeMiddle = 0;
 unsigned long InterruptTimeMiddle = 0;
 unsigned long ResetTimeMiddle = 0;
 unsigned long RoundTrip = 0;
@@ -181,7 +180,6 @@ void buttonChangedMiddle()
             delay(1);
             PressedMiddle = 0;
             ChangeTimeMiddle = InterruptTimeMiddle;
-            ReleasedTimeMiddle = InterruptTimeMiddle;
             // log(++rCountMiddle); // for debugging
         }
     }
@@ -232,7 +230,7 @@ void loop()
         bStateMiddle = digitalRead(MBUTTON_PIN);
         if (bStateMiddle == DGTL_READ_PRESSED_STATE)
         {
-            if((MIDDLE_CLICK_SLEEP_TIME < millis() - ReleasedTimeMiddle) && (PressedMiddle))
+            if((MIDDLE_CLICK_SLEEP_TIME < millis() - ChangeTimeMiddle) && (PressedMiddle))
             {
                 // setting the 'PressedMiddle' equal to 0 is not entirely necessary
                 // however this will prevent an extraneous mouse release message
