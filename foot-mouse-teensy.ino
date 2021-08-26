@@ -57,7 +57,9 @@ enum middle_function {
     MODE_MIDDLE = 20,
     MODE_MIDDLE_INVERTED = 21,
     MODE_RIGHT = 22,
-    MODE_RIGHT_INVERTED = 23
+    MODE_RIGHT_INVERTED = 23,
+    MODE_LEFT = 24,
+    MODE_LEFT_INVERTED = 25,
 };
 
 byte iButtonResetCount = 0; // main loop will reset button after count
@@ -73,7 +75,7 @@ byte pCountLeft = 0;
 byte rCountLeft = 0;
 
 // Variables for middle button
-byte MiddleFunction = MODE_MIDDLE;
+byte MiddleFunction = MODE_MIDDLE_INVERTED;
 byte iButtonResetCountMiddle = 0; // main loop will reset button after count
 bool bStateMiddle = DGTL_READ_PRESSED_STATE;
 volatile bool bPressedFlag = 0;
@@ -149,6 +151,12 @@ void buttonChangedMiddle()
                 case MODE_RIGHT_INVERTED:
                     Mouse.release(MOUSE_RIGHT);
                     break;
+                case MODE_LEFT:
+                    Mouse.press(MOUSE_LEFT);
+                    break;
+                case MODE_LEFT_INVERTED:
+                    Mouse.release(MOUSE_LEFT);
+                    break;
             }
             // Mouse.press(MOUSE_MIDDLE);
             delay(1);
@@ -174,6 +182,12 @@ void buttonChangedMiddle()
                     break;
                 case MODE_RIGHT_INVERTED:
                     Mouse.press(MOUSE_RIGHT);
+                    break;
+                case MODE_LEFT:
+                    Mouse.release(MOUSE_LEFT);
+                    break;
+                case MODE_LEFT_INVERTED:
+                    Mouse.press(MOUSE_LEFT);
                     break;
             }
             // Mouse.release(MOUSE_MIDDLE);
@@ -265,6 +279,12 @@ void loop()
                     break;
                 case MODE_RIGHT_INVERTED:
                     MiddleFunction = MODE_RIGHT_INVERTED;
+                    break;
+                case MODE_LEFT:
+                    MiddleFunction = MODE_LEFT;
+                    break;
+                case MODE_LEFT_INVERTED:
+                    MiddleFunction = MODE_LEFT_INVERTED;
                     break;
                 default:
                     break;
