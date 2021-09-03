@@ -2,6 +2,8 @@
 
 CODE FOR TEENSY
 
+Pedal Down = voltage High
+pedal up -> closes circuit -> pin pulled low
 NOTE:
 To get serial communications from the board,
 you must set usb type under Tools -> Board -> USB Type to include
@@ -25,16 +27,18 @@ send single bite message back
 
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
+#define RBUTTON_PIN 7
+
 #define ENABLE_PIN 3 // only used on model with a switch, depreciated
 
-#define DGTL_READ_PRESSED_STATE 0
-#define PRESS 0
-#define RELEASE 1
+#define PEDAL_DOWN 1
+#define PEDAL_UP 0
 
 #define DEBUG 1
-#define NDEBUG
-// Comment out below line to disable middle click
-#define MIDDLE_CLICK_ENABLED
+
+static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
+static_assert(MOUSE_RIGHT == 4, "Voice commands will fail");
+static_assert(MOUSE_MIDDLE == 2, "Voice commands will fail");
 
 // Writing the values is redundant
 // outside programs need to know these values
@@ -49,245 +53,91 @@ enum return_message_value {
     MIDDLE_MODE_SWITCH = 6,
 };
 
-enum send_message_value {
-    MIDDLE_DISABLE = 11,
-};
-
-enum middle_function {
-    MODE_MIDDLE = 20,
-    MODE_MIDDLE_INVERTED = 21,
-    MODE_RIGHT = 22,
-    MODE_RIGHT_INVERTED = 23,
-    MODE_LEFT = 24,
-    MODE_LEFT_INVERTED = 25,
-};
-
-byte iButtonResetCount = 0; // main loop will reset button after count
-int IncomingByte = 0;
-
-// Variables for left button
-bool bStateLeft = DGTL_READ_PRESSED_STATE;
-
-volatile bool PressedLeft = 0; // 0 is not PressedLeft, IE pulled high
-unsigned long ChangeTimeLeft = 0;
-unsigned long InterruptTimeLeft = 0;
-byte pCountLeft = 0;
-byte rCountLeft = 0;
-
-// Variables for middle button
-byte MiddleFunction = MODE_MIDDLE_INVERTED;
-byte iButtonResetCountMiddle = 0; // main loop will reset button after count
-bool bStateMiddle = DGTL_READ_PRESSED_STATE;
-volatile bool bPressedFlag = 0;
-
-volatile bool PressedMiddle = 0; // 0 is not PressedLeft, IE pulled high
-volatile bool ActivatedMiddle = 0; // 0 is not PressedLeft, IE pulled high
-unsigned long ChangeTimeMiddle = 0;
-unsigned long InterruptTimeMiddle = 0;
-unsigned long ResetTimeMiddle = 0;
-unsigned long RoundTrip = 0;
-byte pCountMiddle = 0;
-byte rCountMiddle = 0;
 
 // Template for debugging to serial monitor
 template <class T>
 void log(T msg)
 {
     if (DEBUG && Serial)
-    //if (DEBUG)
     {
         // if DEBUG is on this will fail if no serial monitor
         Serial.println(msg);
     }
 }
 
-void buttonChangedLeft()
-{
-    //Serial.println("Change"); // for debugging
-    InterruptTimeLeft = millis();
-    if (PressedLeft == 0) {
-        // log("change int left press");
-        if (InterruptTimeLeft - ChangeTimeLeft > BOUNCE_TIME)
-        {
-            Mouse.press(MOUSE_LEFT);
-            delay(1);
-            PressedLeft = 1;
-            ChangeTimeLeft = InterruptTimeLeft;
-            // log(++pCountLeft); // for debugging
-        }
-    }
-    if (PressedLeft == 1) {
-        // log("change int left release");
-        if (InterruptTimeLeft - ChangeTimeLeft > BOUNCE_TIME)
-        {
-            Mouse.release(MOUSE_LEFT);
-            delay(1);
-            PressedLeft = 0;
-            ChangeTimeLeft = InterruptTimeLeft;
-            // log(++rCountLeft); // for debugging
-        }
-    }
-}
+int IncomingByte = 0;
 
-void buttonChangedMiddle()
-{
-    //Serial.println("Change"); // for debugging
-    InterruptTimeMiddle = millis();
-    if (PressedMiddle == 0) {
-        // log("change int middle press");
-        if (InterruptTimeMiddle - ChangeTimeMiddle > BOUNCE_TIME)
-        {
-            switch (MiddleFunction)
-            {
-                case MODE_MIDDLE:
-                    Mouse.press(MOUSE_MIDDLE);
-                    break;
-                case MODE_MIDDLE_INVERTED:
-                    Mouse.release(MOUSE_MIDDLE);
-                    break;
-                case MODE_RIGHT:
-                    Mouse.press(MOUSE_RIGHT);
-                    break;
-                case MODE_RIGHT_INVERTED:
-                    Mouse.release(MOUSE_RIGHT);
-                    break;
-                case MODE_LEFT:
-                    Mouse.press(MOUSE_LEFT);
-                    break;
-                case MODE_LEFT_INVERTED:
-                    Mouse.release(MOUSE_LEFT);
-                    break;
-            }
-            // Mouse.press(MOUSE_MIDDLE);
-            delay(1);
-            PressedMiddle = 1;
-            ChangeTimeMiddle = InterruptTimeMiddle;
-            // log(++pCountMiddle); // for debugging
-        }
+class CButton{
+public:
+    int buttonPin;
+    int buttonState; // The way this code is written, the button state doesn't matter, only if it changes
+    unsigned long lastDebounceTime;
+    int mode;
+    int isInverted;
+
+    CButton(int SetbuttonPin, int Setmode, int SetisInverted)
+    {
+        buttonPin = SetbuttonPin;
+        mode = Setmode;
+        isInverted = SetisInverted;
     }
-    if (PressedMiddle == 1) {
-        // log("change int middle release");
-        if (InterruptTimeMiddle - ChangeTimeMiddle > BOUNCE_TIME)
-        {
-            switch (MiddleFunction)
-            {
-                case MODE_MIDDLE:
-                    Mouse.release(MOUSE_MIDDLE);
-                    break;
-                case MODE_MIDDLE_INVERTED:
-                    Mouse.press(MOUSE_MIDDLE);
-                    break;
-                case MODE_RIGHT:
-                    Mouse.release(MOUSE_RIGHT);
-                    break;
-                case MODE_RIGHT_INVERTED:
-                    Mouse.press(MOUSE_RIGHT);
-                    break;
-                case MODE_LEFT:
-                    Mouse.release(MOUSE_LEFT);
-                    break;
-                case MODE_LEFT_INVERTED:
-                    Mouse.press(MOUSE_LEFT);
-                    break;
-            }
-            // Mouse.release(MOUSE_MIDDLE);
-            delay(1);
-            PressedMiddle = 0;
-            ChangeTimeMiddle = InterruptTimeMiddle;
-            // log(++rCountMiddle); // for debugging
-        }
-    }
-}
+};
+
+CButton buttonOne(LBUTTON_PIN, MOUSE_LEFT, true);
+
+int numberOfButtons = 3;
+CButton buttonArray[] = {
+    CButton(LBUTTON_PIN, MOUSE_LEFT, true),
+    CButton(MBUTTON_PIN, MOUSE_MIDDLE, false),
+    CButton(RBUTTON_PIN, MOUSE_RIGHT, false)
+};
+
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 6;
+int buttonState = 0;
 
 void setup()
 {
     Serial.begin(9600);
-    Serial.println("Starting Serial Connection...");
-    // Setup for the mouseclick
+    log("Starting Serial Connection...");
+    Mouse.begin();
+    log("Starting Mouse Class");
+
     pinMode(LBUTTON_PIN, INPUT); // Pin for the button clicks
     pinMode(MBUTTON_PIN, INPUT); // Pin for the button clicks
-    //pinMode(ENABLE_PIN, INPUT_PULLUP); // Bring pin low to mouse functions
-    attachInterrupt(digitalPinToInterrupt(LBUTTON_PIN), buttonChangedLeft, CHANGE);
-#ifdef MIDDLE_CLICK_ENABLED
-    attachInterrupt(digitalPinToInterrupt(MBUTTON_PIN), buttonChangedMiddle, CHANGE);
-#endif
-    Mouse.begin();
-    Serial.println("Starting Mouse Class");
+    pinMode(RBUTTON_PIN, INPUT); // Pin for the button clicks
+
+    log(MOUSE_LEFT);
+    log(MOUSE_MIDDLE);
+    log(MOUSE_RIGHT);
+
 }
 
 void loop()
 {
+    unsigned long CurrentTime = millis();
 
-    if (iButtonResetCount++ == 100)
+    // Iterate over the array of buttons to check each one
+    for (int i = 0; i < numberOfButtons; i++)
     {
-        bStateLeft = digitalRead(LBUTTON_PIN);
-        bStateMiddle = digitalRead(MBUTTON_PIN);
-        // Reset the button state to not pressed
-        // if debounced routine bugged or some interrupts were missed
-        if (bStateLeft == !DGTL_READ_PRESSED_STATE)
-        {
-            PressedLeft = 0;
-        }
+        int reading = digitalRead(buttonArray[i].buttonPin);
 
-        if (bStateMiddle == !DGTL_READ_PRESSED_STATE)
+        // If the switch has changed, and it's been long enough since the last button press:
+        if (reading != buttonArray[i].buttonState && (CurrentTime - buttonArray[i].lastDebounceTime) > BOUNCE_TIME)
         {
-            PressedMiddle = 0;
-        }
-        iButtonResetCount = 0;
-    }
+            buttonArray[i].buttonState = reading;
+            buttonArray[i].lastDebounceTime = CurrentTime;
+            int mouseButton = buttonArray[i].mode;
 
-    // Deactivate the middle mouse, if the pedal has been lifted
-    // for more than 4 seconds, by sending
-    // a middle mouse release message
-    if (iButtonResetCountMiddle++ == 100)
-    {
-        bStateMiddle = digitalRead(MBUTTON_PIN);
-        if (bStateMiddle == DGTL_READ_PRESSED_STATE)
-        {
-            if((MIDDLE_CLICK_SLEEP_TIME < millis() - ChangeTimeMiddle) && (PressedMiddle))
+            if (buttonArray[i].isInverted)
             {
-                // setting the 'PressedMiddle' equal to 0 is not entirely necessary
-                // however this will prevent an extraneous mouse release message
-                // from being sent when I put my foot back on the pedal
-                // ActivatedMiddle = 0;
-                Mouse.release(MOUSE_MIDDLE);
-                Mouse.release(MOUSE_MIDDLE);
-                Mouse.release(MOUSE_MIDDLE);
+                if (reading == PEDAL_UP) Mouse.press(mouseButton);
+                else Mouse.release(mouseButton);
             }
-        }
-        iButtonResetCountMiddle = 0;
-    }
-
-    // Enable programs on my PC to alter the behavior
-    // of my foot mouse.
-    // Check the serial port for incoming bites every loop
-    if (Serial.available())
-    {
-        IncomingByte = Serial.read();
-        if (-1 != IncomingByte)
-        {
-            switch (IncomingByte)
+            else
             {
-                case MODE_MIDDLE:
-                    MiddleFunction = MODE_MIDDLE;
-                    break;
-                case MODE_MIDDLE_INVERTED:
-                    MiddleFunction = MODE_MIDDLE_INVERTED;
-                    break;
-                case MODE_RIGHT:
-                    MiddleFunction = MODE_RIGHT;
-                    break;
-                case MODE_RIGHT_INVERTED:
-                    MiddleFunction = MODE_RIGHT_INVERTED;
-                    break;
-                case MODE_LEFT:
-                    MiddleFunction = MODE_LEFT;
-                    break;
-                case MODE_LEFT_INVERTED:
-                    MiddleFunction = MODE_LEFT_INVERTED;
-                    break;
-                default:
-                    break;
+                if (reading == PEDAL_UP) Mouse.release(mouseButton);
+                else Mouse.press(mouseButton);
             }
         }
     }
