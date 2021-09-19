@@ -56,7 +56,7 @@ enum return_message_value {
 
 // Template for debugging to serial monitor
 template <class T>
-void log(T msg)
+void Log(T msg)
 {
     if (DEBUG && Serial)
     {
@@ -220,17 +220,17 @@ void ParseMessage()
 void setup()
 {
     Serial.begin(9600);
-    log("Starting Serial Connection...");
+    Log("Starting Serial Connection...");
     Mouse.begin();
-    log("Starting Mouse Class");
+    Log("Starting Mouse Class");
 
     pinMode(LBUTTON_PIN, INPUT); // Pin for the button clicks
     pinMode(MBUTTON_PIN, INPUT); // Pin for the button clicks
     pinMode(RBUTTON_PIN, INPUT); // Pin for the button clicks
 
-    log(MOUSE_LEFT);
-    log(MOUSE_MIDDLE);
-    log(MOUSE_RIGHT);
+    Log(MOUSE_LEFT);
+    Log(MOUSE_MIDDLE);
+    Log(MOUSE_RIGHT);
 
 }
 
