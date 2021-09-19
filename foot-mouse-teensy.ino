@@ -25,9 +25,18 @@ send single bite message back
 #define BOUNCE_TIME 2 // milliseconds
 #define MIDDLE_CLICK_SLEEP_TIME 3500 // milliseconds
 
-#define LBUTTON_PIN 2
-#define MBUTTON_PIN 5
-#define RBUTTON_PIN 7
+#define MODEL_NUMBER 3
+
+#if MODEL_NUMBER == 2
+    #define LBUTTON_PIN 2
+    #define MBUTTON_PIN 5
+    #define RBUTTON_PIN 7
+#endif // MODEL_NUMBER
+#if MODEL_NUMBER == 3
+    #define LBUTTON_PIN 4
+    #define MBUTTON_PIN 5
+    #define RBUTTON_PIN 6
+#endif // MODEL_NUMBER
 
 #define ENABLE_PIN 3 // only used on model with a switch, depreciated
 
@@ -39,20 +48,6 @@ send single bite message back
 static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
 static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
-
-// Writing the values is redundant
-// outside programs need to know these values
-// so i have them listed explicitly
-enum return_message_value {
-    LEFT_CLICK = 0,
-    LEFT_PRESS = 1,
-    LEFT_RELEASE = 2,
-    MIDDLE_CLICK = 3,
-    MIDDLE_PRESS = 4,
-    MIDDLE_RELEASE = 5,
-    MIDDLE_MODE_SWITCH = 6,
-};
-
 
 // Template for debugging to serial monitor
 template <class T>
@@ -98,8 +93,6 @@ void ReceiveSerialInput()
 {
     static bool receiveInProgress = false;
     static byte index = 0;
-    // static byte startMarker = '<';
-    // static byte endMarker = '>'
     static byte startMarker = 16;
     static byte endMarker = 19;
     static byte rb;
@@ -108,7 +101,7 @@ void ReceiveSerialInput()
     receiveInProgress = false;
 
     if (newMessageAvailable)
-    {h
+    {
         Log("message rejected, existing message not read yet");
         return;
     }
