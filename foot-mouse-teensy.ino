@@ -25,14 +25,16 @@ send single bite message back
 #define BOUNCE_TIME 2 // milliseconds
 #define MIDDLE_CLICK_SLEEP_TIME 3500 // milliseconds
 
-#define MODEL_NUMBER 3
+#define MODEL_NUMBER 2
 
 #if MODEL_NUMBER == 2
+    const int numberOfButtons = 2;
     #define LBUTTON_PIN 2
     #define MBUTTON_PIN 5
     #define RBUTTON_PIN 7
 #endif // MODEL_NUMBER
 #if MODEL_NUMBER == 3
+    const int numberOfButtons = 3;
     #define LBUTTON_PIN 4
     #define MBUTTON_PIN 5
     #define RBUTTON_PIN 6
@@ -76,9 +78,6 @@ public:
     }
 };
 
-CButton buttonOne(LBUTTON_PIN, MOUSE_LEFT, true);
-
-int numberOfButtons = 3;
 CButton buttonArray[] = {
     CButton(LBUTTON_PIN, MOUSE_LEFT, true),
     CButton(MBUTTON_PIN, MOUSE_MIDDLE, false),
@@ -178,37 +177,6 @@ void ParseMessage()
     newMessageAvailable = false;
     Log("Ending Parse message");
 }
-
-// void ParseMessage()
-// {
-//     Log("Starting To Parse Message");
-//     byte pedalNumber = inputBuffer[0];
-//     byte mouseMode = inputBuffer[1];
-//     byte isInverted = inputBuffer[2];
-
-//     Log(pedalNumber);
-//     Log(mouseMode);
-//     Log(isInverted);
-
-//     if (pedalNumber == '0')
-//     {
-//         if (mouseMode == 'L')
-//         {
-//             buttonArray[1].mode = MOUSE_LEFT;
-//         }
-//         else Log("Mouse mode is not valid.");
-
-//         if (isInverted == '0')
-//         {
-//             buttonArray[1].isInverted = 0;
-//         }
-//         else Log("Inverted mode is not valid.");
-//     }
-//     else Log("Pedal number is not valid.");
-
-//     newMessageAvailable = false;
-//     
-// }
 
 void setup()
 {
