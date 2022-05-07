@@ -35,7 +35,7 @@ Serial Sequence Of Ops:
 
 #include <Mouse.h>
 
-#define BOUNCE_TIME 20 // milliseconds
+#define BOUNCE_TIME 20  // milliseconds
 
 #define MODEL_NUMBER 2
 
@@ -44,15 +44,15 @@ const int numberOfButtons = 2;
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 7
-#endif // MODEL_NUMBER
+#endif  // MODEL_NUMBER
 #if MODEL_NUMBER == 3
-const int numberOfButtons = 3;
+// the os will be hosed if numberOfButtons is set to (3) and three pedals
+// are not connected.
+const int numberOfButtons = 2;  // Set to 3 to enable right click
 #define LBUTTON_PIN 4
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 6
-#endif // MODEL_NUMBER
-
-#define ENABLE_PIN 3 // only used on model with a switch, depreciated
+#endif  // MODEL_NUMBER
 
 #define PEDAL_DOWN 1
 #define PEDAL_UP 0
@@ -64,7 +64,8 @@ static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
 
 // Template for debugging to serial monitor
-template <class T> void Log(T msg) {
+template <class T>
+void Log(T msg) {
   if (DEBUG && Serial) {
     // if DEBUG is on this will fail if no serial monitor
     Serial.println(msg);
@@ -72,10 +73,10 @@ template <class T> void Log(T msg) {
 }
 
 class CButton {
-public:
+ public:
   int buttonPin;
-  int buttonState; // The way this code is written, the button state doesn't
-                   // matter, only if it changes
+  int buttonState;  // The way this code is written, the button state doesn't
+                    // matter, only if it changes
   unsigned long lastDebounceTime;
   int mode;
   int isInverted;
@@ -87,10 +88,12 @@ public:
   }
 };
 
-CButton buttonArray[] = {CButton(LBUTTON_PIN, MOUSE_LEFT, true),
-                         CButton(MBUTTON_PIN, MOUSE_MIDDLE, false),
-                         CButton(RBUTTON_PIN, MOUSE_RIGHT, false)};
+CButton buttonArray[] = {CButton(LBUTTON_PIN, MOUSE_LEFT, true), CButton(MBUTTON_PIN, MOUSE_MIDDLE, false), CButton(RBUTTON_PIN, MOUSE_RIGHT, false)};
 
+/**
+ * Receiving serial input is used to change pedal mode
+ * through the use of scripts on the host pc.
+ */
 const byte bufferSize = 3;
 byte inputBuffer[bufferSize];
 bool newMessageAvailable = false;
@@ -126,8 +129,9 @@ void ReceiveSerialInput() {
             Log("buffer overflow on input");
             return;
           }
-        } else
+        } else {
           break;
+        }
       } else if (rb == startMarker)
         receiveInProgress = true;
     }
@@ -135,11 +139,11 @@ void ReceiveSerialInput() {
 
     receiveInProgress = false;
 
-    if (index == 0)
+    if (index == 0) {
       Log("no start sequence found");
-    else if (index < 3)
+    } else if (index < 3) {
       Log("message not long enough");
-    else {
+    } else {
       newMessageAvailable = true;
       Log("Setting message available: true");
     }
@@ -157,21 +161,22 @@ void ParseMessage() {
   Log(isInverted);
 
   if (pedalNumber >= 0 && pedalNumber <= 2) {
-    if (mouseMode == MOUSE_LEFT || mouseMode == MOUSE_MIDDLE ||
-        mouseMode == MOUSE_RIGHT) {
-      buttonArray[pedalNumber].mode = mouseMode;
-    } else
+    if (mouseMode == MOUSE_LEFT || mouseMode == MOUSE_MIDDLE || mouseMode == MOUSE_RIGHT) {
+      buttonArray[pedalNumber].mode = mouseMode;  // set desired mouse button
+    } else {
       Log("Mouse mode is not valid.");
+    }
 
     if (isInverted == 0 || isInverted == 1) {
-      buttonArray[pedalNumber].isInverted = isInverted;
-    } else
+      buttonArray[pedalNumber].isInverted = isInverted;  // see file comment for explanation on pedal inversion
       Log("Inverted mode is not valid.");
-  } else
-    Log("Petal number is not valid.");
+    } else {
+      Log("Pedal number is not valid.");
+    }
 
-  newMessageAvailable = false;
-  Log("Ending Parse message");
+    newMessageAvailable = false;
+    Log("Ending Parse message");
+  }
 }
 
 void setup() {
@@ -180,9 +185,9 @@ void setup() {
   Mouse.begin();
   Log("Starting Mouse Class");
 
-  pinMode(LBUTTON_PIN, INPUT); // Pin for the button clicks
-  pinMode(MBUTTON_PIN, INPUT); // Pin for the button clicks
-  pinMode(RBUTTON_PIN, INPUT); // Pin for the button clicks
+  pinMode(LBUTTON_PIN, INPUT);  // Pin for the button clicks
+  pinMode(MBUTTON_PIN, INPUT);  // Pin for the button clicks
+  pinMode(RBUTTON_PIN, INPUT);  // Pin for the button clicks
 
   Log(MOUSE_LEFT);
   Log(MOUSE_MIDDLE);
@@ -198,22 +203,23 @@ void loop() {
 
     // If the switch has changed, and it's been long enough since the last
     // button press:
-    if (reading != buttonArray[i].buttonState &&
-        (CurrentTime - buttonArray[i].lastDebounceTime) > BOUNCE_TIME) {
+    if (reading != buttonArray[i].buttonState && (CurrentTime - buttonArray[i].lastDebounceTime) > BOUNCE_TIME) {
       buttonArray[i].buttonState = reading;
       buttonArray[i].lastDebounceTime = CurrentTime;
       int mouseButton = buttonArray[i].mode;
 
       if (buttonArray[i].isInverted) {
-        if (reading == PEDAL_UP)
+        if (reading == PEDAL_UP) {
           Mouse.press(mouseButton);
-        else
+        } else {
           Mouse.release(mouseButton);
+        }
       } else {
-        if (reading == PEDAL_UP)
+        if (reading == PEDAL_UP) {
           Mouse.release(mouseButton);
-        else
+        } else {
           Mouse.press(mouseButton);
+        }
       }
     }
   }
