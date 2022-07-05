@@ -34,6 +34,7 @@ Serial Sequence Of Ops:
 */
 
 #include <Mouse.h>
+// #include <Keyboard.h>
 
 #define BOUNCE_TIME 20  // milliseconds
 
@@ -169,14 +170,15 @@ void ParseMessage() {
 
     if (isInverted == 0 || isInverted == 1) {
       buttonArray[pedalNumber].isInverted = isInverted;  // see file comment for explanation on pedal inversion
-      Log("Inverted mode is not valid.");
     } else {
-      Log("Pedal number is not valid.");
+      Log("Inverted mode is not valid.");
     }
-
-    newMessageAvailable = false;
-    Log("Ending Parse message");
+  } else {
+    Log("Pedal number is not valid.");
   }
+
+  newMessageAvailable = false;
+  Log("Ending Parse message");
 }
 
 void setup() {
