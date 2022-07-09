@@ -89,7 +89,13 @@ class CButton {
   }
 };
 
-CButton buttonArray[] = {CButton(LBUTTON_PIN, MOUSE_LEFT, true), CButton(MBUTTON_PIN, MOUSE_MIDDLE, false), CButton(RBUTTON_PIN, MOUSE_RIGHT, false)};
+// clang-format off
+CButton buttonArray[] = {
+  CButton(LBUTTON_PIN, MOUSE_LEFT, true),
+  CButton(MBUTTON_PIN, MOUSE_MIDDLE, false),
+  CButton(RBUTTON_PIN, MOUSE_RIGHT, false)
+};
+// clang-format on
 
 /**
  * Receiving serial input is used to change pedal mode
@@ -161,6 +167,8 @@ void ParseMessage() {
   Log(mouseMode);
   Log(isInverted);
 
+
+  // TODO: make a control click mouse option
   if (pedalNumber >= 0 && pedalNumber <= 2) {
     if (mouseMode == MOUSE_LEFT || mouseMode == MOUSE_MIDDLE || mouseMode == MOUSE_RIGHT) {
       buttonArray[pedalNumber].mode = mouseMode;  // set desired mouse button
