@@ -1,96 +1,126 @@
 /*
-
-BOARD INFO:
+BOARD INFO & CONFIGURATION SETTINGS:
 Teensy 4.0
 USB Type: Serial + Keyboard + Mouse + Joystick
-CPU Speed: 24MHz (set to minimum)
-Optimize: fastest
+CPU Speed: 24MHz (set to minimum for efficiency)
+Optimize: fastest (because why not)
 
 Upload Steps:
 1. Set board family
 2. Set USB type (links in needed libraries for mouse & serial)
 3. Set desired clock speed
-4. Set code optimization
+4. Set code optimization level
 5. Use "Get Board Info" to find correct COM port
-6. Push reset button on physical board
-7. Click Upload
+6. Verify & compile code
+7. Push reset button on physical board (Paul's utility will auto-upload on
+reset)
 
 NOTE:
 To get serial communications from the board,
 you must set usb type under Tools -> Board -> USB Type to include
 a Serial library.
 e.g. "Serial + Keyboard + Mouse + Joystick"
+you can't monitor serial and send from typical port
 
 pedal up -> closes circuit -> pin pulled low
 pedal down -> opens circuit -> pin pulled high via external resistor
 
-Serial Sequence Of Ops:
+idea for scrolling mode:
 1. send single byte message to server
 2. server checks current coordinates of mouse
 3. if mouse is in left-hand area of screen
 4. send single bite message back
     to release the middle click
-
 */
 
+#include <Keyboard.h>
 #include <Mouse.h>
-// #include <Keyboard.h>
 
-#define BOUNCE_TIME 20  // milliseconds
+#define BOUNCE_TIME 20 // milliseconds
 
+// model number 2 is the at-home unit (with 2 foot pedals)
+// model number 3 is the at-work unit (with 3 foot pedals)
 #define MODEL_NUMBER 2
 
 #if MODEL_NUMBER == 2
-const int numberOfButtons = 2;
+const constexpr int number_of_pedals = 2;
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 7
-#endif  // MODEL_NUMBER
+#endif // MODEL_NUMBER
+
+// warning: the os will be hosed if number_of_pedals is set to (3) and three
+// pedals are not connected.
 #if MODEL_NUMBER == 3
-// the os will be hosed if numberOfButtons is set to (3) and three pedals
-// are not connected.
-const int numberOfButtons = 2;  // Set to 3 to enable right click
+const constexpr int number_of_pedals = 3; // Set to 3 to enable right click
 #define LBUTTON_PIN 4
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 6
-#endif  // MODEL_NUMBER
+#endif // MODEL_NUMBER
 
 #define PEDAL_DOWN 1
 #define PEDAL_UP 0
 
 #define DEBUG 1
 
+// These are from Paul's mouse library.
+// I use the mode as the button to press because of legacy reasons.
 static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
 static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
 
+enum Mode
+{
+  MACRO_CTRL_CLICK = 8,
+  MACRO_SCROLL = 9,
+};
+
+// the Arduino compiler does not like the Mozilla style for template
+// declarations
+// clang-format off
 // Template for debugging to serial monitor
-template <class T>
+template<class T>
 void Log(T msg) {
   if (DEBUG && Serial) {
     // if DEBUG is on this will fail if no serial monitor
     Serial.println(msg);
   }
 }
+// clang-format on
 
-class CButton {
- public:
-  int buttonPin;
-  int buttonState;  // The way this code is written, the button state doesn't
-                    // matter, only if it changes
-  unsigned long lastDebounceTime;
+class CButton
+{
+public:
+  int pin;
   int mode;
-  int isInverted;
+  int is_inverted;
 
-  CButton(int SetbuttonPin, int Setmode, int SetisInverted) {
-    buttonPin = SetbuttonPin;
-    mode = Setmode;
-    isInverted = SetisInverted;
+  int default_mode;
+  int default_is_inverted;
+
+  int state = 0; // The way this code is written, the button state doesn't
+                 // matter, only if it changes
+  unsigned long last_debounce_time = 0;
+
+  CButton(int pin_number, int mode_, int is_inverted_)
+  {
+    pin = pin_number;
+    mode = mode_;
+    is_inverted = is_inverted_;
+
+    default_mode = mode_;
+    default_is_inverted = is_inverted_;
+  }
+
+  void resetToDefaults()
+  {
+    mode = default_mode;
+    is_inverted = default_is_inverted;
   }
 };
 
 // clang-format off
-CButton buttonArray[] = {
+CButton button_array[] = {  // button defaults
   CButton(LBUTTON_PIN, MOUSE_LEFT, true),
   CButton(MBUTTON_PIN, MOUSE_MIDDLE, false),
   CButton(RBUTTON_PIN, MOUSE_RIGHT, false)
@@ -100,145 +130,142 @@ CButton buttonArray[] = {
 /**
  * Receiving serial input is used to change pedal mode
  * through the use of scripts on the host pc.
+ *
+ * Note that I use no log statements to debug serial communications.
+ * I can't send serial to the teensy through the normal ports when I'm
+ * monitoring serial through the Arduino application.
  */
-const byte bufferSize = 3;
-byte inputBuffer[bufferSize];
-bool newMessageAvailable = false;
+const size_t buffer_size = 3;
+byte input_buffer[buffer_size];
 
-void ReceiveSerialInput() {
-  static bool receiveInProgress = false;
-  static byte index = 0;
-  static byte startMarker = 16;
-  static byte endMarker = 19;
-  static byte rb;
+bool
+ReceiveSerialInput()
+{
+  const constexpr byte start_marker = 16;
+  const constexpr byte end_marker = 17;
+  bool found_start_marker = false;
+  byte index = 0;
+  byte rb;
 
-  index = 0;
-  receiveInProgress = false;
+  while (Serial.available() > 0) {
+    rb = Serial.read();
+    if (found_start_marker) {
+      if (rb != end_marker && index < buffer_size) {
+        input_buffer[index++] = rb;
+      } else if (rb == end_marker && index == buffer_size) {
+        // buffer is full and valid end marker found after body
+        return true;
+      } else {
+        // buffer full but no end marker
+        // or end marker with an incomplete buffer
+        return false;
+      }
+    } else if (rb == start_marker)
+      found_start_marker = true;
+  }
 
-  if (newMessageAvailable) {
-    Log("message rejected, existing message not read yet");
+  // no start marker found or no serial was available
+  // or message was not long enough
+  return false;
+}
+
+// parse a 3-byte buffer
+void
+ParseMessage()
+{
+  const auto pedal_index = input_buffer[0];
+  const auto mode = input_buffer[1];
+  const auto inversion = input_buffer[2];
+
+  // special case command to reset to default
+  if (pedal_index == 0 && mode == 0 && inversion == 0) {
+    for (int i = 0; i < number_of_pedals; ++i) {
+      button_array[i].resetToDefaults();
+    }
     return;
   }
 
-  if (Serial.available()) {
-    Log("starting to read message");
-    while (Serial.available() > 0) {
-      rb = Serial.read();
-      Log(rb);
+  // validate message parameters
+  bool valid_pedal_index = pedal_index >= 0 || pedal_index < number_of_pedals;
+  bool valid_mode = mode > 0;
+  bool valid_inversion = inversion == 0 || inversion == 1;
 
-      if (receiveInProgress) {
-        if (rb != endMarker) {
-          Log("adding character to buffer");
-          inputBuffer[index] = rb;
-          index++;
-
-          if (index >= 5) {
-            Log("buffer overflow on input");
-            return;
-          }
-        } else {
-          break;
-        }
-      } else if (rb == startMarker)
-        receiveInProgress = true;
-    }
-    Log("end of the loop reached");
-
-    receiveInProgress = false;
-
-    if (index == 0) {
-      Log("no start sequence found");
-    } else if (index < 3) {
-      Log("message not long enough");
-    } else {
-      newMessageAvailable = true;
-      Log("Setting message available: true");
-    }
+  if (valid_pedal_index && valid_mode && valid_inversion) {
+    // set desired mouse button
+    button_array[pedal_index].mode = static_cast<int>(mode);
+    // see file comment for explanation on pedal inversion
+    button_array[pedal_index].is_inverted = static_cast<bool>(inversion);
   }
 }
 
-void ParseMessage() {
-  Log("Starting To Parse Message");
-  byte pedalNumber = inputBuffer[0];
-  byte mouseMode = inputBuffer[1];
-  byte isInverted = inputBuffer[2];
-
-  Log(pedalNumber);
-  Log(mouseMode);
-  Log(isInverted);
-
-
-  // TODO: make a control click mouse option
-  if (pedalNumber >= 0 && pedalNumber <= 2) {
-    if (mouseMode == MOUSE_LEFT || mouseMode == MOUSE_MIDDLE || mouseMode == MOUSE_RIGHT) {
-      buttonArray[pedalNumber].mode = mouseMode;  // set desired mouse button
-    } else {
-      Log("Mouse mode is not valid.");
-    }
-
-    if (isInverted == 0 || isInverted == 1) {
-      buttonArray[pedalNumber].isInverted = isInverted;  // see file comment for explanation on pedal inversion
-    } else {
-      Log("Inverted mode is not valid.");
-    }
-  } else {
-    Log("Pedal number is not valid.");
-  }
-
-  newMessageAvailable = false;
-  Log("Ending Parse message");
-}
-
-void setup() {
+void
+setup()
+{
   Serial.begin(9600);
-  Log("Starting Serial Connection...");
-  Mouse.begin();
-  Log("Starting Mouse Class");
+  Mouse.begin(); // not sure why don't need to call Keyboard.begin() as wellall
 
-  pinMode(LBUTTON_PIN, INPUT);  // Pin for the button clicks
-  pinMode(MBUTTON_PIN, INPUT);  // Pin for the button clicks
-  pinMode(RBUTTON_PIN, INPUT);  // Pin for the button clicks
-
-  Log(MOUSE_LEFT);
-  Log(MOUSE_MIDDLE);
-  Log(MOUSE_RIGHT);
+  // I use external pull-up resistors, I find they are more reliable
+  pinMode(LBUTTON_PIN, INPUT);
+  pinMode(MBUTTON_PIN, INPUT);
+  pinMode(RBUTTON_PIN, INPUT);
 }
 
-void loop() {
-  unsigned long CurrentTime = millis();
+void
+loop()
+{
+  unsigned long current_time = millis();
 
   // Iterate over the array of buttons to check each one
-  for (int i = 0; i < numberOfButtons; i++) {
-    int reading = digitalRead(buttonArray[i].buttonPin);
+  for (int i = 0; i < number_of_pedals; i++) {
+    auto& button = button_array[i];
+    int reading = digitalRead(button.pin);
 
     // If the switch has changed, and it's been long enough since the last
-    // button press:
-    if (reading != buttonArray[i].buttonState && (CurrentTime - buttonArray[i].lastDebounceTime) > BOUNCE_TIME) {
-      buttonArray[i].buttonState = reading;
-      buttonArray[i].lastDebounceTime = CurrentTime;
-      int mouseButton = buttonArray[i].mode;
+    // button press.
+    if (reading != button.state &&
+        (current_time - button.last_debounce_time) > BOUNCE_TIME) {
 
-      if (buttonArray[i].isInverted) {
-        if (reading == PEDAL_UP) {
-          Mouse.press(mouseButton);
-        } else {
-          Mouse.release(mouseButton);
-        }
-      } else {
-        if (reading == PEDAL_UP) {
-          Mouse.release(mouseButton);
-        } else {
-          Mouse.press(mouseButton);
-        }
+      button.state = reading;
+      button.last_debounce_time = current_time;
+
+      bool engage = ((button.is_inverted && reading == PEDAL_UP) ||
+                     (!button.is_inverted && reading == PEDAL_DOWN));
+
+      switch (button.mode) {
+        // for left, right, and middle button modes, the mode number corresponds
+        // to the Mouse library button constant
+        case MOUSE_LEFT:
+        case MOUSE_RIGHT:
+        case MOUSE_MIDDLE:
+          if (engage) {
+            Mouse.press(button.mode);
+          } else {
+            Mouse.release(button.mode);
+          }
+          break;
+        case MACRO_CTRL_CLICK: // fire off the keyboard macro
+          if (engage) {
+            Keyboard.press(MODIFIERKEY_CTRL);
+            delay(20);
+            Mouse.click(MOUSE_LEFT);
+            delay(20);
+            Keyboard.release(MODIFIERKEY_CTRL);
+          }
+          break;
+        // TODO: actually implement scrolling
+        case MACRO_SCROLL: // toggle scrolling with desktop program
+          Keyboard.press(KEY_F6);
+          delay(20);
+          Keyboard.release(KEY_F6);
+          break;
       }
     }
   }
 
   // Enable programs on my PC to alter the behavior
   // of my foot mouse.
-  // Check the serial port for incoming bites every loop
-  ReceiveSerialInput();
-  if (newMessageAvailable) {
+  // Check the serial port for incoming bytes every loop
+  if (ReceiveSerialInput()) {
     ParseMessage();
   }
 }
