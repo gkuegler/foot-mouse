@@ -191,9 +191,7 @@ ParseMessage()
   bool valid_inversion = inversion == 0 || inversion == 1;
 
   if (valid_pedal_index && valid_mode && valid_inversion) {
-    // set desired mouse button
     button_array[pedal_index].mode = static_cast<int>(mode);
-    // see file comment for explanation on pedal inversion
     button_array[pedal_index].is_inverted = static_cast<bool>(inversion);
   }
 }
@@ -254,9 +252,8 @@ loop()
           break;
         // TODO: actually implement scrolling
         case MACRO_SCROLL: // toggle scrolling with desktop program
-          Keyboard.press(KEY_F6);
-          delay(20);
-          Keyboard.release(KEY_F6);
+            Keyboard.press(KEY_F18);
+            Keyboard.release(KEY_F18);
           break;
       }
     }
