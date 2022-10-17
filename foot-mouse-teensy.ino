@@ -43,16 +43,16 @@ idea for scrolling mode:
 #define MODEL_NUMBER 2
 
 #if MODEL_NUMBER == 2
-const constexpr int number_of_pedals = 2;
+constexpr int k_number_of_pedals = 2;
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 7
 #endif // MODEL_NUMBER
 
-// warning: the os will be hosed if number_of_pedals is set to (3) and three
+// warning: the os will be hosed if k_number_of_pedals is set to (3) and three
 // pedals are not connected.
 #if MODEL_NUMBER == 3
-const constexpr int number_of_pedals = 3; // Set to 3 to enable right click
+constexpr int k_number_of_pedals = 3; // Set to 3 to enable right click
 #define LBUTTON_PIN 4
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 6
@@ -73,6 +73,12 @@ enum Mode
 {
   MACRO_CTRL_CLICK = 8,
   MACRO_SCROLL = 9,
+};
+
+enum MessageCode
+{
+  MSG_IDENTIFY = 4,
+  MSG_SET_BUTTONS = 5,
 };
 
 // the Arduino compiler does not like the Mozilla style for template
@@ -135,14 +141,14 @@ CButton button_array[] = {  // button defaults
  * I can't send serial to the teensy through the normal ports when I'm
  * monitoring serial through the Arduino application.
  */
-const size_t buffer_size = 3;
-byte input_buffer[buffer_size];
+constexpr const size_t k_buffer_size = 4;
+byte g_input_buffer[k_buffer_size];
 
 bool
 ReceiveSerialInput()
 {
-  const constexpr byte start_marker = 16;
-  const constexpr byte end_marker = 17;
+  constexpr byte start_marker = 16;
+  constexpr byte end_marker = 17;
   bool found_start_marker = false;
   byte index = 0;
   byte rb;
@@ -150,14 +156,15 @@ ReceiveSerialInput()
   while (Serial.available() > 0) {
     rb = Serial.read();
     if (found_start_marker) {
-      if (rb != end_marker && index < buffer_size) {
-        input_buffer[index++] = rb;
-      } else if (rb == end_marker && index == buffer_size) {
+      if (rb != end_marker && index < k_buffer_size) {
+        g_input_buffer[index++] = rb;
+      } else if (rb == end_marker && index == k_buffer_size) {
         // buffer is full and valid end marker found after body
         return true;
       } else {
         // buffer full but no end marker
-        // or end marker with an incomplete buffer
+        // or end marker found with an incomplete buffer
+        // reject message
         return false;
       }
     } else if (rb == start_marker)
@@ -173,26 +180,33 @@ ReceiveSerialInput()
 void
 ParseMessage()
 {
-  const auto pedal_index = input_buffer[0];
-  const auto mode = input_buffer[1];
-  const auto inversion = input_buffer[2];
+  // TODO: add in heartbeat msg code
+  const auto message_code = g_input_buffer[0];
+  const auto pedal_index = g_input_buffer[1];
+  const auto mode = g_input_buffer[2];
+  const auto inversion = g_input_buffer[3];
 
-  // special case command to reset to default
-  if (pedal_index == 0 && mode == 0 && inversion == 0) {
-    for (int i = 0; i < number_of_pedals; ++i) {
-      button_array[i].resetToDefaults();
+  if (MSG_IDENTIFY == message_code) {
+    // return an identifier code
+  } else if (MSG_SET_BUTTONS == message_code) {
+    // special case command to reset to default
+    if (pedal_index == 0 && mode == 0 && inversion == 0) {
+      for (int i = 0; i < k_number_of_pedals; ++i) {
+        button_array[i].resetToDefaults();
+      }
+      return;
     }
-    return;
-  }
 
-  // validate message parameters
-  bool valid_pedal_index = pedal_index >= 0 || pedal_index < number_of_pedals;
-  bool valid_mode = mode > 0;
-  bool valid_inversion = inversion == 0 || inversion == 1;
+    // validate message parameters
+    bool valid_pedal_index =
+      pedal_index >= 0 || pedal_index < k_number_of_pedals;
+    bool valid_mode = mode > 0;
+    bool valid_inversion = inversion == 0 || inversion == 1;
 
-  if (valid_pedal_index && valid_mode && valid_inversion) {
-    button_array[pedal_index].mode = static_cast<int>(mode);
-    button_array[pedal_index].is_inverted = static_cast<bool>(inversion);
+    if (valid_pedal_index && valid_mode && valid_inversion) {
+      button_array[pedal_index].mode = static_cast<int>(mode);
+      button_array[pedal_index].is_inverted = static_cast<bool>(inversion);
+    }
   }
 }
 
@@ -214,7 +228,7 @@ loop()
   unsigned long current_time = millis();
 
   // Iterate over the array of buttons to check each one
-  for (int i = 0; i < number_of_pedals; i++) {
+  for (int i = 0; i < k_number_of_pedals; i++) {
     auto& button = button_array[i];
     int reading = digitalRead(button.pin);
 
@@ -252,8 +266,8 @@ loop()
           break;
         // TODO: actually implement scrolling
         case MACRO_SCROLL: // toggle scrolling with desktop program
-            Keyboard.press(KEY_F18);
-            Keyboard.release(KEY_F18);
+          Keyboard.press(KEY_F18);
+          Keyboard.release(KEY_F18);
           break;
       }
     }
