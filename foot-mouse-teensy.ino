@@ -40,7 +40,7 @@ idea for scrolling mode:
 
 // model number 2 is the at-home unit (with 2 foot pedals)
 // model number 3 is the at-work unit (with 3 foot pedals)
-#define MODEL_NUMBER 2
+#define MODEL_NUMBER 3
 
 #if MODEL_NUMBER == 2
 constexpr int k_number_of_pedals = 2;
@@ -49,10 +49,15 @@ constexpr int k_number_of_pedals = 2;
 #define RBUTTON_PIN 7
 #endif // MODEL_NUMBER
 
-// warning: the os will be hosed if k_number_of_pedals is set to (3) and three
-// pedals are not connected.
+// WARNING: the os will be hosed if k_number_of_pedals is set to (3) and three
+// pedals are not connected. If this happens:
+//   1. unplug microcontroller
+//   2. put computer to sleep and wake up to reset stop modifiers
+//   3. recompile fixed code and make sure Paul's loader tool is running
+//   4. hold reset button while plugging microcontroller back in 
+  // 5. press reset button within 1 second of being plugged in
 #if MODEL_NUMBER == 3
-constexpr int k_number_of_pedals = 3; // Set to 3 to enable right click
+constexpr int k_number_of_pedals = 2; // Set to 3 to enable right click
 #define LBUTTON_PIN 4
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 6
@@ -264,7 +269,6 @@ loop()
             Keyboard.release(MODIFIERKEY_CTRL);
           }
           break;
-        // TODO: actually implement scrolling
         case MACRO_SCROLL: // toggle scrolling with desktop program
           Keyboard.press(KEY_F18);
           Keyboard.release(KEY_F18);
