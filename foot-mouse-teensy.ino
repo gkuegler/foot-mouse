@@ -40,9 +40,10 @@ idea for scrolling mode:
 
 // model number 2 is the at-home unit (with 2 foot pedals)
 // model number 3 is the at-work unit (with 3 foot pedals)
-#define MODEL_NUMBER 3
+#define MODEL_NUMBER 2
 
 #if MODEL_NUMBER == 2
+
 constexpr int k_number_of_pedals = 2;
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
@@ -50,7 +51,7 @@ constexpr int k_number_of_pedals = 2;
 #endif // MODEL_NUMBER
 
 // WARNING: the os will be hosed if k_number_of_pedals is set to (3) and three
-// pedals are not connected. If this happens:
+// pedals are not physically plugged into the unit. If this happens:
 //   1. unplug microcontroller
 //   2. put computer to sleep and wake up to reset stop modifiers
 //   3. recompile fixed code and make sure Paul's loader tool is running
@@ -73,6 +74,8 @@ constexpr int k_number_of_pedals = 2; // Set to 3 to enable right click
 static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
 static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
+
+constexpr int k_board_id = 3;
 
 enum Mode
 {
@@ -185,7 +188,6 @@ ReceiveSerialInput()
 void
 ParseMessage()
 {
-  // TODO: add in heartbeat msg code
   const auto message_code = g_input_buffer[0];
   const auto pedal_index = g_input_buffer[1];
   const auto mode = g_input_buffer[2];
@@ -193,6 +195,9 @@ ParseMessage()
 
   if (MSG_IDENTIFY == message_code) {
     // return an identifier code
+    // auto buffer_length = k_buffer_size + 2
+    // byte output[buffer_length] = {16, 4, k_board_id, 0, 17};
+    Serial.write("footmouse\n");
   } else if (MSG_SET_BUTTONS == message_code) {
     // special case command to reset to default
     if (pedal_index == 0 && mode == 0 && inversion == 0) {
