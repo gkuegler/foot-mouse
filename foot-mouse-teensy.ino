@@ -38,27 +38,37 @@ idea for scrolling mode:
 
 #define BOUNCE_TIME 20 // milliseconds
 
-// model number 2 is the at-home unit (with 2 foot pedals)
-// model number 3 is the at-work unit (with 3 foot pedals)
-#define MODEL_NUMBER 2
+/*
+UNIT DESCRIPTIONS:
+model number 2 is the at-home unit (with 2 foot pedals)
+model number 3 is the at-work unit (with 3 foot pedals)
+*/
+#define MODEL_3_PEDAL 3
+#define MODEL_2_PEDAL 2
+#define MODEL_1_PEDAL 1
+
+#define MODEL_NUMBER MODEL_3_PEDAL
+
+// WARNING: the os will be hosed if NUM_OF_PEDALS does not match the number of
+// pedals are not physically plugged into the unit. If this happens:
+//   1. unplug microcontroller
+//   2. put computer to sleep and wake up to reset modifier keypress
+//   3. recompile fixed code and make sure Paul's loader tool is running
+//   4. hold reset button while plugging microcontroller back in to pc
+//   5. press reset button within 1 second of being plugged in (just to be sure)
+// TODO: add an initial check to only activate the pedals one it changes value
 
 #if MODEL_NUMBER == 2
-
-constexpr int k_number_of_pedals = 2;
+constexpr int NUM_OF_PEDALS = 2;
+#define BOARD_ID 3;
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 7
 #endif // MODEL_NUMBER
 
-// WARNING: the os will be hosed if k_number_of_pedals is set to (3) and three
-// pedals are not physically plugged into the unit. If this happens:
-//   1. unplug microcontroller
-//   2. put computer to sleep and wake up to reset stop modifiers
-//   3. recompile fixed code and make sure Paul's loader tool is running
-//   4. hold reset button while plugging microcontroller back in 
-  // 5. press reset button within 1 second of being plugged in
 #if MODEL_NUMBER == 3
-constexpr int k_number_of_pedals = 2; // Set to 3 to enable right click
+constexpr int NUM_OF_PEDALS = 3; // Set to 3 to enable right click
+#define BOARD_ID 3;
 #define LBUTTON_PIN 4
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 6
@@ -75,26 +85,33 @@ static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
 static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
 
-constexpr int k_board_id = 3;
-
 enum Mode
 {
-  MACRO_CTRL_CLICK = 8,
-  MACRO_SCROLL = 9,
+  MODE_MOUSE_LEFT = MOUSE_LEFT,
+  MODE_MOUSE_RIGHT = MOUSE_RIGHT,
+  MODE_MOUSE_MIDDLE = MOUSE_MIDDLE,
+  MODE_MOUSE_DOUBLE = 8,
+  MACRO_CTRL_CLICK = 16,
+  MACRO_SCROLL = 32,
 };
+
+#define PEDAL_1_MODE MOUSE_LEFT
+#define PEDAL_2_MODE MOUSE_MIDDLE
+#define PEDAL_3_MODE MOUSE_RIGHT
 
 enum MessageCode
 {
   MSG_IDENTIFY = 4,
   MSG_SET_BUTTONS = 5,
+  MSG_CLEAR_BUTTONS = 6,
 };
 
-// the Arduino compiler does not like the Mozilla style for template
+// The Arduino compiler does not like the Mozilla style for template
 // declarations
 // clang-format off
 // Template for debugging to serial monitor
 template<class T>
-void Log(T msg) {
+void log(T msg) {
   if (DEBUG && Serial) {
     // if DEBUG is on this will fail if no serial monitor
     Serial.println(msg);
@@ -102,7 +119,7 @@ void Log(T msg) {
 }
 // clang-format on
 
-class CButton
+class Button
 {
 public:
   int pin;
@@ -116,7 +133,7 @@ public:
                  // matter, only if it changes
   unsigned long last_debounce_time = 0;
 
-  CButton(int pin_number, int mode_, int is_inverted_)
+  Button(int pin_number, int mode_, int is_inverted_)
   {
     pin = pin_number;
     mode = mode_;
@@ -126,20 +143,44 @@ public:
     default_is_inverted = is_inverted_;
   }
 
-  void resetToDefaults()
+  void reset_to_defaults()
   {
+    switch (mode) {
+      // for left, right, and middle button modes, the mode number corresponds
+      // to the Mouse library button constant
+      case MODE_MOUSE_LEFT:
+      case MODE_MOUSE_RIGHT:
+      case MODE_MOUSE_MIDDLE:
+        Mouse.release(mode);
+        break;
+    }
     mode = default_mode;
     is_inverted = default_is_inverted;
   }
 };
 
 // clang-format off
-CButton button_array[] = {  // button defaults
-  CButton(LBUTTON_PIN, MOUSE_LEFT, true),
-  CButton(MBUTTON_PIN, MOUSE_MIDDLE, false),
-  CButton(RBUTTON_PIN, MOUSE_RIGHT, false)
+Button button_array[] = {  // button defaults
+  Button(LBUTTON_PIN, PEDAL_1_MODE, true),
+  Button(MBUTTON_PIN, PEDAL_2_MODE, false),
+  Button(RBUTTON_PIN, PEDAL_3_MODE, false)
 };
 // clang-format on
+
+bool
+valid_buttons(const int pedal_index, const int mode, const int inversion)
+{
+  if (pedal_index < 0 || pedal_index >= NUM_OF_PEDALS) {
+    return false;
+  }
+  if (mode <= 0) { // not checking if above maximum mode constant value
+    return false;
+  }
+  if (inversion < 0 || inversion > 1) {
+    return false;
+  }
+  return true;
+}
 
 /**
  * Receiving serial input is used to change pedal mode
@@ -153,7 +194,7 @@ constexpr const size_t k_buffer_size = 4;
 byte g_input_buffer[k_buffer_size];
 
 bool
-ReceiveSerialInput()
+receive_serial_input()
 {
   constexpr byte start_marker = 16;
   constexpr byte end_marker = 17;
@@ -167,7 +208,7 @@ ReceiveSerialInput()
       if (rb != end_marker && index < k_buffer_size) {
         g_input_buffer[index++] = rb;
       } else if (rb == end_marker && index == k_buffer_size) {
-        // buffer is full and valid end marker found after body
+        // buffer is full and valid end marker was found after body
         return true;
       } else {
         // buffer full but no end marker
@@ -186,34 +227,24 @@ ReceiveSerialInput()
 
 // parse a 3-byte buffer
 void
-ParseMessage()
+parse_message()
 {
   const auto message_code = g_input_buffer[0];
-  const auto pedal_index = g_input_buffer[1];
-  const auto mode = g_input_buffer[2];
-  const auto inversion = g_input_buffer[3];
-
   if (MSG_IDENTIFY == message_code) {
     // return an identifier code
     // auto buffer_length = k_buffer_size + 2
     // byte output[buffer_length] = {16, 4, k_board_id, 0, 17};
     Serial.write("footmouse\n");
-  } else if (MSG_SET_BUTTONS == message_code) {
+  } else if (MSG_CLEAR_BUTTONS == message_code) {
     // special case command to reset to default
-    if (pedal_index == 0 && mode == 0 && inversion == 0) {
-      for (int i = 0; i < k_number_of_pedals; ++i) {
-        button_array[i].resetToDefaults();
-      }
-      return;
+    for (int i = 0; i < NUM_OF_PEDALS; ++i) {
+      button_array[i].reset_to_defaults();
     }
-
-    // validate message parameters
-    bool valid_pedal_index =
-      pedal_index >= 0 || pedal_index < k_number_of_pedals;
-    bool valid_mode = mode > 0;
-    bool valid_inversion = inversion == 0 || inversion == 1;
-
-    if (valid_pedal_index && valid_mode && valid_inversion) {
+  } else if (MSG_SET_BUTTONS == message_code) {
+    const auto pedal_index = static_cast<int>(g_input_buffer[1]);
+    const auto mode = static_cast<int>(g_input_buffer[2]);
+    const auto inversion = static_cast<int>(g_input_buffer[3]);
+    if (valid_buttons(pedal_index, mode, inversion)) {
       button_array[pedal_index].mode = static_cast<int>(mode);
       button_array[pedal_index].is_inverted = static_cast<bool>(inversion);
     }
@@ -224,7 +255,7 @@ void
 setup()
 {
   Serial.begin(9600);
-  Mouse.begin(); // not sure why don't need to call Keyboard.begin() as wellall
+  Mouse.begin(); // not sure why don't need to call Keyboard.begin() as well
 
   // I use external pull-up resistors, I find they are more reliable
   pinMode(LBUTTON_PIN, INPUT);
@@ -238,7 +269,7 @@ loop()
   unsigned long current_time = millis();
 
   // Iterate over the array of buttons to check each one
-  for (int i = 0; i < k_number_of_pedals; i++) {
+  for (int i = 0; i < NUM_OF_PEDALS; i++) {
     auto& button = button_array[i];
     int reading = digitalRead(button.pin);
 
@@ -254,16 +285,20 @@ loop()
                      (!button.is_inverted && reading == PEDAL_DOWN));
 
       switch (button.mode) {
-        // for left, right, and middle button modes, the mode number corresponds
-        // to the Mouse library button constant
-        case MOUSE_LEFT:
-        case MOUSE_RIGHT:
-        case MOUSE_MIDDLE:
+        // for left, right, and middle button modes, the mode number
+        // corresponds to the Mouse library button constant
+        case MODE_MOUSE_LEFT:
+        case MODE_MOUSE_RIGHT:
+        case MODE_MOUSE_MIDDLE:
           if (engage) {
             Mouse.press(button.mode);
           } else {
             Mouse.release(button.mode);
           }
+          break;
+        case MODE_MOUSE_DOUBLE: // double-click
+          Mouse.click();
+          Mouse.click();
           break;
         case MACRO_CTRL_CLICK: // fire off the keyboard macro
           if (engage) {
@@ -285,7 +320,7 @@ loop()
   // Enable programs on my PC to alter the behavior
   // of my foot mouse.
   // Check the serial port for incoming bytes every loop
-  if (ReceiveSerialInput()) {
-    ParseMessage();
+  if (receive_serial_input()) {
+    parse_message();
   }
 }
