@@ -36,7 +36,8 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define BOUNCE_TIME 20 // milliseconds
+#define BOUNCE_TIME 20      // milliseconds
+#define RESIDENCE_TIME 3000 // milliseconds
 
 /*
 UNIT DESCRIPTIONS:
@@ -129,9 +130,11 @@ public:
   int default_mode;
   int default_is_inverted;
 
-  int state = 0; // The way this code is written, the button state doesn't
-                 // matter, only if it changes
+  // The way this code is written, the button state doesn't matter,
+  // only if it changes.
+  int state = 0;
   unsigned long last_debounce_time = 0;
+  bool is_inactive = false;
 
   Button(int pin_number, int mode_, int is_inverted_)
   {
@@ -156,6 +159,11 @@ public:
     }
     mode = default_mode;
     is_inverted = default_is_inverted;
+  }
+  bool should_engage(int reading)
+  {
+    return (is_inverted && reading == PEDAL_UP) ||
+           (!is_inverted && reading == PEDAL_DOWN);
   }
 };
 
@@ -252,6 +260,41 @@ parse_message()
 }
 
 void
+pedal_operation(int mode, bool engage)
+{
+  switch (mode) {
+    // for left, right, and middle button modes, the mode number
+    // corresponds to the Mouse library button constant
+    case MODE_MOUSE_LEFT:
+    case MODE_MOUSE_RIGHT:
+    case MODE_MOUSE_MIDDLE:
+      if (engage) {
+        Mouse.press(mode);
+      } else {
+        Mouse.release(mode);
+      }
+      break;
+    case MODE_MOUSE_DOUBLE: // double-click
+      Mouse.click();
+      Mouse.click();
+      break;
+    case MACRO_CTRL_CLICK: // fire off the keyboard macro
+      if (engage) {
+        Keyboard.press(MODIFIERKEY_CTRL);
+        delay(20);
+        Mouse.click(MOUSE_LEFT);
+        delay(20);
+        Keyboard.release(MODIFIERKEY_CTRL);
+      }
+      break;
+    case MACRO_SCROLL: // toggle scrolling with desktop program
+      Keyboard.press(KEY_F18);
+      Keyboard.release(KEY_F18);
+      break;
+  }
+}
+
+void
 setup()
 {
   Serial.begin(9600);
@@ -278,43 +321,26 @@ loop()
     if (reading != button.state &&
         (current_time - button.last_debounce_time) > BOUNCE_TIME) {
 
+      button.is_inactive = false;
       button.state = reading;
       button.last_debounce_time = current_time;
 
-      bool engage = ((button.is_inverted && reading == PEDAL_UP) ||
-                     (!button.is_inverted && reading == PEDAL_DOWN));
-
-      switch (button.mode) {
-        // for left, right, and middle button modes, the mode number
-        // corresponds to the Mouse library button constant
-        case MODE_MOUSE_LEFT:
-        case MODE_MOUSE_RIGHT:
-        case MODE_MOUSE_MIDDLE:
-          if (engage) {
-            Mouse.press(button.mode);
-          } else {
-            Mouse.release(button.mode);
-          }
-          break;
-        case MODE_MOUSE_DOUBLE: // double-click
-          Mouse.click();
-          Mouse.click();
-          break;
-        case MACRO_CTRL_CLICK: // fire off the keyboard macro
-          if (engage) {
-            Keyboard.press(MODIFIERKEY_CTRL);
-            delay(20);
-            Mouse.click(MOUSE_LEFT);
-            delay(20);
-            Keyboard.release(MODIFIERKEY_CTRL);
-          }
-          break;
-        case MACRO_SCROLL: // toggle scrolling with desktop program
-          Keyboard.press(KEY_F18);
-          Keyboard.release(KEY_F18);
-          break;
-      }
+      pedal_operation(button.mode, button.should_engage(reading));
     }
+
+    // Clearing action when the battle has been engaged for too long.
+    //
+    // The pedal has now been engaged for too long.
+    // } else if (button.is_inactive == false && reading == button.state &&
+    //            button.should_engage(reading) &&
+    //            (current_time - button.last_debounce_time) > RESIDENCE_TIME)
+    //            {
+    //   button.is_inactive = true;
+    //   // Keyboard.press(MODIFIERKEY_CTRL);
+    //   // delay(20);
+    //   // Keyboard.release(MODIFIERKEY_CTRL);
+    //   pedal_operation(button.mode, false);
+    // }
   }
 
   // Enable programs on my PC to alter the behavior
