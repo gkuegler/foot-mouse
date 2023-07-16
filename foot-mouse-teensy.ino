@@ -33,6 +33,10 @@ idea for scrolling mode:
     to release the middle click
 */
 
+// BRANCH NOTES:
+// BRANCH-TASK: use the EEPROM library to access 1024 bytes for
+// storing the secret phrase.
+#include <EEPROM.h>
 #include <Keyboard.h>
 #include <Mouse.h>
 
@@ -50,14 +54,17 @@ model number 3 is the at-work unit (with 3 foot pedals)
 
 #define MODEL_NUMBER MODEL_3_PEDAL
 
-// WARNING: the os will be hosed if NUM_OF_PEDALS does not match the number of
-// pedals are not physically plugged into the unit. If this happens:
+// WARNING: the os will be hosed if NUM_OF_PEDALS does not match
+// the  number of  pedals are not physically plugged into the
+// unit. If this  happens:
 //   1. unplug microcontroller
 //   2. put computer to sleep and wake up to reset modifier keypress
 //   3. recompile fixed code and make sure Paul's loader tool is running
 //   4. hold reset button while plugging microcontroller back in to pc
-//   5. press reset button within 1 second of being plugged in (just to be sure)
-// TODO: add an initial check to only activate the pedals one it changes value
+//   5. press reset button within 1 second of being plugged
+//       in (just to be sure)
+// TODO: add an initial check to only activate the pedals one it
+// changes  value
 
 #if MODEL_NUMBER == 2
 constexpr int NUM_OF_PEDALS = 2;
@@ -78,7 +85,10 @@ constexpr int NUM_OF_PEDALS = 3; // Set to 3 to enable right click
 #define PEDAL_DOWN 1
 #define PEDAL_UP 0
 
-#define DEBUG 1
+// Opening the serial monitor on Arduino will
+// prevent outside scripts from sending serial
+// messages to the board.
+#define DEBUG 0
 
 // These are from Paul's mouse library.
 // I use the mode as the button to press because of legacy reasons.
@@ -86,6 +96,7 @@ static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
 static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
 
+// BRANCH-TASK:
 enum Mode
 {
   MODE_MOUSE_LEFT = MOUSE_LEFT,
@@ -105,6 +116,8 @@ enum MessageCode
   MSG_IDENTIFY = 4,
   MSG_SET_BUTTONS = 5,
   MSG_CLEAR_BUTTONS = 6,
+  MSG_SET_SECRET,
+  MSG_KEYBOARD_TYPE_SECRET
 };
 
 // The Arduino compiler does not like the Mozilla style for template
@@ -149,8 +162,8 @@ public:
   void reset_to_defaults()
   {
     switch (mode) {
-      // for left, right, and middle button modes, the mode number corresponds
-      // to the Mouse library button constant
+      // For left, right, and middle button modes, the mode
+      // number corresponds  to the Mouse library button constant.
       case MODE_MOUSE_LEFT:
       case MODE_MOUSE_RIGHT:
       case MODE_MOUSE_MIDDLE:
@@ -160,6 +173,7 @@ public:
     mode = default_mode;
     is_inverted = default_is_inverted;
   }
+
   bool should_engage(int reading)
   {
     return (is_inverted && reading == PEDAL_UP) ||
@@ -190,6 +204,12 @@ valid_buttons(const int pedal_index, const int mode, const int inversion)
   return true;
 }
 
+bool
+restore_secret(const char* data)
+{
+  return true;
+}
+
 /**
  * Receiving serial input is used to change pedal mode
  * through the use of scripts on the host pc.
@@ -210,6 +230,7 @@ receive_serial_input()
   byte index = 0;
   byte rb;
 
+  // BRANCH-TASK: allow variable length messages
   while (Serial.available() > 0) {
     rb = Serial.read();
     if (found_start_marker) {
@@ -237,7 +258,11 @@ receive_serial_input()
 void
 parse_message()
 {
+  // First byte is the message code.
+  // The remaining (3) bytes are dependent on the message code.
   const auto message_code = g_input_buffer[0];
+  // TODO: convert to switch statement
+  // switch (name)
   if (MSG_IDENTIFY == message_code) {
     // return an identifier code
     // auto buffer_length = k_buffer_size + 2
@@ -248,6 +273,15 @@ parse_message()
     for (int i = 0; i < NUM_OF_PEDALS; ++i) {
       button_array[i].reset_to_defaults();
     }
+  } else if (MSG_SET_SECRET == message_code) {
+    // TASK: enable variable length messages up to a max byte count.
+    /*
+     * Assume UTF-8 encoded characters.
+     * Set the null terminated string as the secret.
+     */
+  } else if (MSG_KEYBOARD_TYPE_SECRET == message_code) {
+    /* code */
+
   } else if (MSG_SET_BUTTONS == message_code) {
     const auto pedal_index = static_cast<int>(g_input_buffer[1]);
     const auto mode = static_cast<int>(g_input_buffer[2]);
@@ -298,12 +332,19 @@ void
 setup()
 {
   Serial.begin(9600);
-  Mouse.begin(); // not sure why don't need to call Keyboard.begin() as well
+  log("starting foot-mouse");
+
+  // not sure why don't need to call Keyboard.begin() as well
+  Mouse.begin();
 
   // I use external pull-up resistors, I find they are more reliable
   pinMode(LBUTTON_PIN, INPUT);
   pinMode(MBUTTON_PIN, INPUT);
   pinMode(RBUTTON_PIN, INPUT);
+
+  auto memory_size = EEPROM.length();
+  log("memory size:");
+  log(memory_size);
 }
 
 void
@@ -316,8 +357,8 @@ loop()
     auto& button = button_array[i];
     int reading = digitalRead(button.pin);
 
-    // If the switch has changed, and it's been long enough since the last
-    // button press.
+    // If the switch has changed, and it's been long enough since
+    // the last  button press.
     if (reading != button.state &&
         (current_time - button.last_debounce_time) > BOUNCE_TIME) {
 
@@ -343,9 +384,8 @@ loop()
     // }
   }
 
-  // Enable programs on my PC to alter the behavior
-  // of my foot mouse.
-  // Check the serial port for incoming bytes every loop
+  // Enable programs on my PC to alter the behavior of my foot
+  // mouse.  Check the serial port for incoming bytes every loop.
   if (receive_serial_input()) {
     parse_message();
   }
