@@ -4,6 +4,7 @@ Teensy 4.0
 USB Type: Serial + Keyboard + Mouse + Joystick
 CPU Speed: 24MHz (set to minimum for efficiency)
 Optimize: fastest (because why not)
+LITTLE-ENDIAN
 
 Upload Steps:
 1. Set board family
@@ -124,16 +125,35 @@ enum MessageCode
 
 // The Arduino compiler does not like the Mozilla style for template
 // declarations
-// clang-format off
-// Template for debugging to serial monitor
-template<class T>
-void log(T msg) {
-  if (DEBUG && Serial) {
-    // if DEBUG is on this will fail if no serial monitor
-    Serial.println(msg);
-  }
-}
 
+// Template for debugging to serial monitor
+// template<class T>
+// void
+// log(unsigned char* msg)
+// {
+//   if (DEBUG && Serial) {
+//     // if DEBUG is on this will fail if no serial monitor
+//     Serial.println(msg);
+//   }
+// }
+
+// void
+// log(int msg)
+// {
+//   if (DEBUG && Serial) {
+//     // if DEBUG is on this will fail if no serial monitor
+//     Serial.println(msg);
+//   }
+// }
+
+// void
+// log(void* msg)
+// {
+//   if (DEBUG && Serial) {
+//     // if DEBUG is on this will fail if no serial monitor
+//     Serial.println(msg);
+//   }
+// }
 
 class Button
 {
@@ -159,6 +179,12 @@ public:
 
     default_mode = mode_;
     default_is_inverted = is_inverted_;
+  }
+
+  void set_mode(int mode_, int is_inverted_)
+  {
+    mode = mode_;
+    is_inverted = is_inverted_;
   }
 
   void reset_to_defaults()
@@ -272,7 +298,7 @@ get_secret()
  * monitoring serial through the Arduino application.
  */
 
-int
+bool
 receive_serial_input()
 {
   constexpr byte start_marker = 16;
@@ -293,13 +319,13 @@ receive_serial_input()
         g_input_buffer[index++] = rb;
       } else if (rb == end_marker && index <= k_buffer_size) {
         // buffer is full and valid end marker was found after body
-        return index;
+        return true;
       } else {
         // buffer full but no end marker
         // or end marker found with an incomplete buffer
         // reject message
         // Serial.write("The message was too long.\n");
-        return 0;
+        return false;
       }
     } else if (rb == start_marker)
       found_start_marker = true;
@@ -307,7 +333,7 @@ receive_serial_input()
 
   // no start marker found or no serial was available
   // or message was not long enough
-  return 0;
+  return false;
 }
 
 struct __attribute__((packed)) MSG_STRUCT
@@ -318,23 +344,39 @@ struct __attribute__((packed)) MSG_STRUCT
 
 struct __attribute__((packed)) MSG_ECHO_STRUCT
 {
-  const byte* msg;
+  const char* msg;
 };
 
-struct __attribute__((packed)) MSG_SET_BUTTONS_STRUCT
+// struct __attribute__((packed)) ButtonParameters
+// {
+//   const byte pedal_index;
+//   const byte mode;
+//   const byte inversion;
+// };
+
+class ButtonParameters
 {
-  const byte message_code;
+public:
   const int pedal_index;
   const int mode;
   const int inversion;
+  ButtonParameters(byte* data)
+    : pedal_index(static_cast<const int>(data[0]))
+    , mode(static_cast<const int>(data[1]))
+    , inversion(static_cast<const int>(data[2]))
+  {
+  }
 };
 
 void
-parse_message(int size)
+parse_message()
 {
   // First byte is the message code.
   // The remaining (3) bytes are dependent on the message code.
-  const auto message_code = g_input_buffer[0];
+  byte* data = g_input_buffer;
+  // HEADER
+  int offset = 1;
+  const auto message_code = data[0];
   // TODO: convert to switch statement
   // switch (name)
   if (MSG_IDENTIFY == message_code) {
@@ -354,18 +396,18 @@ parse_message(int size)
   } else if (MSG_ECHO == message_code) {
     // Serial.write("footmouse\n");
     // const char* message = reinterpret_cast<char*>(&g_input_buffer + 1);
-    auto data = reinterpret_cast<MSG_ECHO_STRUCT*>(g_input_buffer + 1);
-    Serial.write(reinterpret_cast<const char*>(data->msg));
+    // auto data = reinterpret_cast<MSG_ECHO_STRUCT*>(g_input_buffer + 1);
+    Serial.print(reinterpret_cast<char*>(data + offset));
     // Serial.write("\n");
     // log("reinterpret_cast message:");
     // log(message);
   } else if (MSG_SET_BUTTONS == message_code) {
-    const auto pedal_index = static_cast<int>(g_input_buffer[1]);
-    const auto mode = static_cast<int>(g_input_buffer[2]);
-    const auto inversion = static_cast<int>(g_input_buffer[3]);
+    const auto pedal_index = static_cast<int>(data[offset]);
+    const auto mode = static_cast<int>(data[offset + 1]);
+    const auto inversion = static_cast<int>(data[offset + 2]);
+
     if (valid_button_parameters(pedal_index, mode, inversion)) {
-      button_array[pedal_index].mode = static_cast<int>(mode);
-      button_array[pedal_index].is_inverted = static_cast<bool>(inversion);
+      button_array[pedal_index].set_mode(mode, inversion);
     }
   }
 }
@@ -409,7 +451,7 @@ void
 setup()
 {
   Serial.begin(9600);
-  log("starting foot-mouse");
+  // log("starting foot-mouse");
 
   // not sure why don't need to call Keyboard.begin() as well
   Mouse.begin();
@@ -459,8 +501,7 @@ loop()
 
   // Enable programs on my PC to alter the behavior of my foot
   // mouse.  Check the serial port for incoming bytes every loop.
-  int size = receive_serial_input();
-  if (size) {
-    parse_message(size);
+  if (receive_serial_input()) {
+    parse_message();
   }
 }
