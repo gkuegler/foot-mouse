@@ -394,13 +394,7 @@ parse_message()
   } else if (MSG_KEYBOARD_TYPE_SECRET == message_code) {
     // An empty block
   } else if (MSG_ECHO == message_code) {
-    // Serial.write("footmouse\n");
-    // const char* message = reinterpret_cast<char*>(&g_input_buffer + 1);
-    // auto data = reinterpret_cast<MSG_ECHO_STRUCT*>(g_input_buffer + 1);
     Serial.print(reinterpret_cast<char*>(data + offset));
-    // Serial.write("\n");
-    // log("reinterpret_cast message:");
-    // log(message);
   } else if (MSG_SET_BUTTONS == message_code) {
     const auto pedal_index = static_cast<int>(data[offset]);
     const auto mode = static_cast<int>(data[offset + 1]);
