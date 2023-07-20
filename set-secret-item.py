@@ -20,7 +20,7 @@ def send_serial(msg):
     # the 16 & 17 are start and stop markers
     constructed_msg = bytes([16, *msg, 17])
     print(f"[send_serial] constructed_msg: {constructed_msg}")
-    with serial.Serial(PORT, 9600, write_timeout=1, timeout=0.5) as s:
+    with serial.Serial(PORT, 9600, write_timeout=1, timeout=1) as s:
         s.write(constructed_msg)
         s.flush()
         # time.sleep(2)
@@ -39,15 +39,9 @@ def send_serial(msg):
 
 
 def echo_test():
-    msg = "hello world".encode(encoding="UTF-8")
-    foot_pedal_message = [MSG_ECHO, *msg, 0]
-    print(f"foot pedal message to send: {foot_pedal_message}")
-    send_serial(foot_pedal_message)
-    # if result:
-    #     print(f"result type: {type(result)}")
-    #     print(f"echo test result: {result}")
-    # else:
-    #     print("no result from echo test")
+    msg = "hello world".encode(encoding="ASCII", errors='strict')
+    # Null terminated string.
+    send_serial([MSG_ECHO, *msg, 0x00])
 
 
 def set_temporary(text):
@@ -73,10 +67,6 @@ if __name__ == "__main__":
     print(serial.tools.list_ports.main())
     print("-----------------------")
 
-    import threading, time
-    t = threading.Thread(target=echo_test)
-    t.start()
-    t.join(timeout=5)
-    # echo_test()
-    # set_temporary("hello world!")
-    # type_temporary()
+    echo_test()
+    set_temporary("hello world!xxx")
+    type_temporary()

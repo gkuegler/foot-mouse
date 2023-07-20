@@ -46,34 +46,41 @@ idea for scrolling mode:
 
 #define BOUNCE_TIME 20      // milliseconds
 #define RESIDENCE_TIME 3000 // milliseconds
-#define MAX_STR_LENGTH 256  // milliseconds
+#define MAX_STR_LENGTH 256
+
+// NOTE: Opening the serial monitor on Arduino IDE will lock
+// serial access two external scripts.
+#define DEBUG 1
 
 /*
 UNIT DESCRIPTIONS:
-model number 2 is the at-home unit (with 2 foot pedals)
-model number 3 is the at-work unit (with 3 foot pedals)
+model number 1 is the pro-micro board (with 1 foot pedal & switch)
+  It's not supported by this sketch.
+model number 2 is the teensy at-home unit (with 2 foot pedals)
+model number 3 is the teensy at-work unit (with 3 foot pedals)
+
+WARNING: the os will be hosed if NUM_OF_PEDALS does not match
+the  number of  pedals are not physically plugged into the
+unit. If this  happens:
+  1. unplug microcontroller
+  2. put computer to sleep and wake up to reset modifier keypress
+  3. recompile fixed code and make sure Paul's loader tool is running
+  4. hold reset button while plugging microcontroller back in to pc
+  5. press reset button within 1 second of being plugged
+      in (just to be sure)
+TODO: add an initial check to detected number of pedals connected?
 */
-#define MODEL_3_PEDAL 3
-#define MODEL_2_PEDAL 2
-#define MODEL_1_PEDAL 1
 
-#define MODEL_NUMBER MODEL_3_PEDAL
+#define MODEL_2 2
+#define MODEL_3 3
 
-// WARNING: the os will be hosed if NUM_OF_PEDALS does not match
-// the  number of  pedals are not physically plugged into the
-// unit. If this  happens:
-//   1. unplug microcontroller
-//   2. put computer to sleep and wake up to reset modifier keypress
-//   3. recompile fixed code and make sure Paul's loader tool is running
-//   4. hold reset button while plugging microcontroller back in to pc
-//   5. press reset button within 1 second of being plugged
-//       in (just to be sure)
-// TODO: add an initial check to only activate the pedals one it
+#define MODEL_NUMBER MODEL_3
+
 // changes  value
 
 #if MODEL_NUMBER == 2
 constexpr int NUM_OF_PEDALS = 2;
-#define BOARD_ID 3;
+#define BOARD_ID 2;
 #define LBUTTON_PIN 2
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 7
@@ -90,18 +97,13 @@ constexpr int NUM_OF_PEDALS = 3; // Set to 3 to enable right click
 #define PEDAL_DOWN 1
 #define PEDAL_UP 0
 
-// Opening the serial monitor on Arduino will
-// prevent outside scripts from sending serial
-// messages to the board.
-#define DEBUG 0
-
-// These are from Paul's mouse library.
-// I use the mode as the button to press because of legacy reasons.
+// These constants are from Paul's mouse library.
+// I use the mode as the button to press to save memory and code
+// brevity.
 static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
-static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
+static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
 
-// BRANCH-TASK:
 enum Mode
 {
   MODE_MOUSE_LEFT = MOUSE_LEFT,
@@ -112,9 +114,9 @@ enum Mode
   MACRO_SCROLL = 32,
 };
 
-#define PEDAL_1_MODE MOUSE_LEFT
-#define PEDAL_2_MODE MOUSE_MIDDLE
-#define PEDAL_3_MODE MOUSE_RIGHT
+#define PEDAL_1_DEFAULT_MODE MODE_MOUSE_LEFT
+#define PEDAL_2_DEFAULT_MODE MODE_MOUSE_MIDDLE
+#define PEDAL_3_DEFAULT_MODE MODE_MOUSE_RIGHT
 
 enum MessageCode
 {
@@ -132,17 +134,15 @@ enum MessageCode
 // declarations. I need to temporarily turn formatting off.
 
 // Template for debugging to serial monitor
-// // clang-format off
-// template<class T>
-// void
-// log(unsigned char* msg)
-// // clang-format on
-// {
-//   if (DEBUG && Serial) {
-//     // if DEBUG is on this will fail if no serial monitor
-//     Serial.println(msg);
-//   }
-// }
+// clang-format off
+template<class T>
+void log(T msg)
+// clang-format on
+{
+  if (DEBUG && Serial) {
+    log(msg);
+  }
+}
 
 class Button
 {
@@ -160,7 +160,7 @@ public:
   // The way this code is written, the button state doesn't matter,
   // only if it changes.
   int state = 0;
-  unsigned long last_debounce_time = 0;
+  unsigned long last_change_time = 0;
   bool is_inactive = false;
 
   Button(int pin_number, int mode_, int is_inverted_)
@@ -217,15 +217,15 @@ public:
 
 // clang-format off
 Button button_array[] = {  // button defaults
-  Button(LBUTTON_PIN, PEDAL_1_MODE, true),
-  Button(MBUTTON_PIN, PEDAL_2_MODE, false),
-  Button(RBUTTON_PIN, PEDAL_3_MODE, false)
+  Button(LBUTTON_PIN, PEDAL_1_DEFAULT_MODE, true),
+  Button(MBUTTON_PIN, PEDAL_2_DEFAULT_MODE, false),
+  Button(RBUTTON_PIN, PEDAL_3_DEFAULT_MODE, false)
 };
 // clang-format on
 
 // BRANCH-TASK: create a secret buffer
 constexpr const int k_secret_size = MAX_STR_LENGTH;
-byte g_temp_buffer[k_secret_size] = { 'x', 'x', 'x', '\0' };
+char g_temp_buffer[k_secret_size] = { 'x', 'x', 'x', '\0' };
 
 constexpr const int k_buffer_size = MAX_STR_LENGTH;
 byte g_input_buffer[k_buffer_size];
@@ -236,23 +236,20 @@ byte g_input_buffer[k_buffer_size];
 template<class T>
 void clear_array(T& array, int size) {
   // clang-format on
-  for (int i = 0; i < size; i++) {
-    array[i] = 0;
-  }
+  memset(array, 0, size);
 }
 
 int
-strcpy(byte* destination, const byte* source)
+string_copy(char* destination, const char* source)
 {
   for (int i = 0;; i++) {
-    byte c = source[i];
-    Keyboard.write(c);
+    auto c = source[i];
     destination[i] = c;
-    if ('\0' == c) {
+    if ('\0' == source[i]) {
       return i;
     }
+    // A safety clause in case I forgot a null terminator.
     if (i >= MAX_STR_LENGTH) {
-      // A safety in case I forgot a null terminator.
       return -1;
     }
   }
@@ -279,10 +276,10 @@ valid_button_parameters(const int pedal_index,
 }
 
 bool
-set_temp(const byte* data)
+set_temp(const char* data)
 {
   clear_array(g_temp_buffer, k_secret_size);
-  if (strcpy(g_temp_buffer, data) == 0) {
+  if (string_copy(g_temp_buffer, data) == 0) {
     return false;
   } else {
     return true;
@@ -293,33 +290,14 @@ void
 type_temp()
 {
   // For testing
-  // Serial.print((char*)g_temp_buffer);;
+  // Serial.print((char*)g_temp_buffer);
   Keyboard.print((char*)g_temp_buffer);
 }
 
-// BRANCH-TASK: glue use library
-void
-load_test_into_eeprom()
-{
-  auto count = "welcome\0";
-  for (int i = 0;; i++) {
-    auto c = count[i];
-    EEPROM.update(i, c);
-    if ('\0' == c) {
-      break;
-    }
-    if (i > 255) {
-      // A safety in case I forgot a null terminator.
-      break;
-    }
-  }
-}
-
 bool
-set_vault(const byte* data)
+set_vault(const char* data)
 {
-
-  // EEPROM.update(i, c);
+  // TODO: record total number of writes to EEPROM?
   for (int i = 0;; i++) {
     byte c = data[i];
     EEPROM.update(i, c);
@@ -337,17 +315,6 @@ set_vault(const byte* data)
 void
 type_vault()
 {
-  // For testing
-  // int start = 0;
-  // auto count = EEPROM.read(start++);
-  // // BRANCH-TASK: see if this makes sense
-  // for (int i = start; i < count + start; i++) {
-  //   // Serial.write((char*)EEPROM.read(i));
-  //   Keyboard.write((char*)EEPROM.read(i));
-  // }
-  // int start = 0;
-  // auto count = EEPROM.read(start++);
-  // BRANCH-TASK: see if this makes sense
   for (int i = 0;; i++) {
     auto c = (char)EEPROM.read(i);
     if ('\0' != c) {
@@ -405,73 +372,44 @@ receive_serial_input()
   return false;
 }
 
-struct __attribute__((packed)) MSG_STRUCT
-{
-  byte message_code;
-  byte data[255];
-};
-
-struct __attribute__((packed)) MSG_ECHO_STRUCT
-{
-  const char* msg;
-};
-
-// struct __attribute__((packed)) ButtonParameters
-// {
-//   const byte pedal_index;
-//   const byte mode;
-//   const byte inversion;
-// };
-
-class ButtonParameters
-{
-public:
-  const int pedal_index;
-  const int mode;
-  const int inversion;
-  ButtonParameters(byte* data)
-    : pedal_index(static_cast<const int>(data[0]))
-    , mode(static_cast<const int>(data[1]))
-    , inversion(static_cast<const int>(data[2]))
-  {
-  }
-};
+// Possible future scheme using structs.
+// struct __attribute__((packed)) ButtonParameters{};
 
 void
-parse_message()
+handle_message()
 {
   // First byte is the message code.
-  // The remaining (3) bytes are dependent on the message code.
-  // HEADER
-  // int offset = 1;
+  // The remaining bytes are dependent on the message code.
   const auto message_code = g_input_buffer[0];
   byte* data = g_input_buffer + 1;
-  Serial.println((char*)g_input_buffer);
+  log((char*)g_input_buffer);
   switch (message_code) {
+    // Return an identifier code to confirm this is the board I
+    // want to send serial commands to.
     case MSG_IDENTIFY:
-      // Return an identifier code
-      // I only use one board at a time.
-      Serial.write("footmouse\n");
+      Serial.print("footmouse\n");
       break;
 
+    // Reset all buttons to defaults.
     case MSG_CLEAR_BUTTONS:
-      // Special case command to reset to defaults.
       for (int i = 0; i < NUM_OF_PEDALS; ++i) {
         button_array[i].reset_to_defaults();
       }
       break;
 
+    // Load the data received into the temporary buffer (using
+    // teensy RAM).
     case MSG_SET_TEMP:
-      set_temp(data);
-      Serial.print(static_cast<char*>(data));
+      set_temp((const char*)data);
       break;
 
+      // Type out the c - string loaded into the temporary buffer.
     case MSG_KEYBOARD_TYPE_TEMP:
       type_temp();
       break;
 
     case MSG_SET_VAULT:
-      set_vault(data);
+      set_vault((const char*)data);
       break;
 
     case MSG_KEYBOARD_TYPE_VAULT:
@@ -479,8 +417,8 @@ parse_message()
       break;
 
     case MSG_ECHO:
-      Serial.println(reinterpret_cast<char*>(data));
-      // Serial.print("echo test\n");
+      Serial.println((char*)data);
+      // Serial.println("echo test");
       break;
 
     case MSG_SET_BUTTONS:
@@ -534,7 +472,7 @@ void
 setup()
 {
   Serial.begin(9600);
-  // Serial.println("starting foot-mouse");
+  // log("starting foot-mouse");
 
   // not sure why don't need to call Keyboard.begin() as well
   Mouse.begin();
@@ -545,7 +483,7 @@ setup()
   pinMode(RBUTTON_PIN, INPUT);
 
   // For EEPROM testing.
-  // load_test_into_eeprom();
+  // set_vault("EEPROM test value");
 }
 
 void
@@ -553,7 +491,7 @@ loop()
 {
   unsigned long current_time = millis();
 
-  // Iterate over the array of buttons to check each one
+  // Check each button
   for (int i = 0; i < NUM_OF_PEDALS; i++) {
     auto& button = button_array[i];
     int reading = digitalRead(button.pin);
@@ -561,22 +499,22 @@ loop()
     // If the switch has changed, and it's been long enough since
     // the last  button press.
     if (reading != button.state &&
-        (current_time - button.last_debounce_time) > BOUNCE_TIME) {
+        (current_time - button.last_change_time) > BOUNCE_TIME) {
 
       button.is_inactive = false;
       button.state = reading;
-      button.last_debounce_time = current_time;
+      button.last_change_time = current_time;
 
       pedal_operation(button.mode, button.should_engage(reading));
     }
 
-    // Clearing action when the battle has been engaged for too long.
-    //
+    // Clearing action when the button has been engaged for too long.
+
     // The pedal has now been engaged for too long.
     // } else if (button.is_inactive == false && reading == button.state
     // &&
     //            button.should_engage(reading) &&
-    //            (current_time - button.last_debounce_time) >
+    //            (current_time - button.last_change_time) >
     //            RESIDENCE_TIME)
     //            {
     //   button.is_inactive = true;
@@ -588,8 +526,8 @@ loop()
   }
 
   // Enable programs on my PC to alter the behavior of my foot
-  // mouse.  Check the serial port for incoming bytes every loop.
+  // mouse by sending commands over serial.
   if (receive_serial_input()) {
-    parse_message();
+    handle_message();
   }
 }
