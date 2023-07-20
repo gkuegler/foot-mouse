@@ -377,32 +377,42 @@ parse_message()
   // HEADER
   int offset = 1;
   const auto message_code = data[0];
-  // TODO: convert to switch statement
-  // switch (name)
-  if (MSG_IDENTIFY == message_code) {
-    // Return an identifier code
-    // I only use one board at a time.
-    Serial.write("footmouse\n");
-  } else if (MSG_CLEAR_BUTTONS == message_code) {
-    // Special case command to reset to defaults.
-    for (int i = 0; i < NUM_OF_PEDALS; ++i) {
-      button_array[i].reset_to_defaults();
-    }
-  } else if (MSG_SET_SECRET == message_code) {
-    // TASK: enable variable length messages up to a max byte count.
-    // set_secret(static_cast<const byte*>(&g_input_buffer + 1))
-  } else if (MSG_KEYBOARD_TYPE_SECRET == message_code) {
-    // An empty block
-  } else if (MSG_ECHO == message_code) {
-    Serial.print(reinterpret_cast<char*>(data + offset));
-  } else if (MSG_SET_BUTTONS == message_code) {
-    const auto pedal_index = static_cast<int>(data[offset]);
-    const auto mode = static_cast<int>(data[offset + 1]);
-    const auto inversion = static_cast<int>(data[offset + 2]);
+  switch (message_code) {
+    case MSG_IDENTIFY:
+      // Return an identifier code
+      // I only use one board at a time.
+      Serial.write("footmouse\n");
+      break;
 
-    if (valid_button_parameters(pedal_index, mode, inversion)) {
-      button_array[pedal_index].set_mode(mode, inversion);
-    }
+    case MSG_CLEAR_BUTTONS:
+      // Special case command to reset to defaults.
+      for (int i = 0; i < NUM_OF_PEDALS; ++i) {
+        button_array[i].reset_to_defaults();
+      }
+      break;
+
+    case MSG_SET_SECRET:
+      // TASK: enable variable length messages up to a max byte count.
+      // set_secret(static_cast<const byte*>(&g_input_buffer + 1))
+      break;
+
+    case MSG_KEYBOARD_TYPE_SECRET:
+      // An empty block
+      break;
+
+    case MSG_ECHO:
+      Serial.print(reinterpret_cast<char*>(data + offset));
+      break;
+
+    case MSG_SET_BUTTONS:
+      const auto pedal_index = static_cast<int>(data[offset]);
+      const auto mode = static_cast<int>(data[offset + 1]);
+      const auto inversion = static_cast<int>(data[offset + 2]);
+
+      if (valid_button_parameters(pedal_index, mode, inversion)) {
+        button_array[pedal_index].set_mode(mode, inversion);
+      }
+      break;
   }
 }
 
