@@ -34,7 +34,7 @@ idea for scrolling mode:
 */
 
 // BRANCH NOTES:
-// BRANCH-TASK: use the EEPROM library to access 1024 bytes for
+// BRANCH-TASK: use the EEPROM library to access 1080 bytes for
 // storing the secret phrase.
 #include <EEPROM.h>
 #include <Keyboard.h>
@@ -116,9 +116,11 @@ enum MessageCode
   MSG_IDENTIFY = 4,
   MSG_SET_BUTTONS = 5,
   MSG_CLEAR_BUTTONS = 6,
-  MSG_SET_SECRET,
-  MSG_KEYBOARD_TYPE_SECRET
+  MSG_SET_SECRET = 7,
+  MSG_KEYBOARD_TYPE_SECRET = 8,
+  MSG_ECHO = 9
 };
+// clang-format on
 
 // The Arduino compiler does not like the Mozilla style for template
 // declarations
@@ -131,7 +133,7 @@ void log(T msg) {
     Serial.println(msg);
   }
 }
-// clang-format on
+
 
 class Button
 {
@@ -181,6 +183,10 @@ public:
   }
 };
 
+////////////////////////////////////////////////////////////////
+//                      GLOBAL VARIABLES                      //
+////////////////////////////////////////////////////////////////
+
 // clang-format off
 Button button_array[] = {  // button defaults
   Button(LBUTTON_PIN, PEDAL_1_MODE, true),
@@ -189,8 +195,44 @@ Button button_array[] = {  // button defaults
 };
 // clang-format on
 
+// BRANCH-TASK: create a secret buffer
+constexpr const int k_secret_size = 256;
+byte g_secret_buffer[k_secret_size];
+
+constexpr const int k_buffer_size = 256;
+byte g_input_buffer[k_buffer_size];
+
+////////////////////////////////////////////////////////////////
+
+// clang-format off
+template<class T>
+void clear_array(T& array, int size) {
+  // clang-format on
+  for (int i = 0; i < size; i++) {
+    array[i] = 0;
+  }
+}
+
+int
+strcpy(byte* destination, const byte* source)
+{
+  for (int i = 0;; i++) {
+    const byte c = source[i];
+    if ('\0' != c) {
+      destination[i] = c;
+    } else {
+      return i;
+    }
+  }
+};
+
 bool
-valid_buttons(const int pedal_index, const int mode, const int inversion)
+valid_button_parameters(const int pedal_index,
+                        const int mode,
+                        const int inversion)
+/**
+ * Check if the button parameters are valid.
+ */
 {
   if (pedal_index < 0 || pedal_index >= NUM_OF_PEDALS) {
     return false;
@@ -205,9 +247,20 @@ valid_buttons(const int pedal_index, const int mode, const int inversion)
 }
 
 bool
-restore_secret(const char* data)
+set_secret(const byte* data)
 {
-  return true;
+  clear_array(g_secret_buffer, k_secret_size);
+  if (strcpy(g_secret_buffer, data) == 0) {
+    return false;
+  } else {
+    return true;
+  }
+}
+
+byte*
+get_secret()
+{
+  return g_secret_buffer;
 }
 
 /**
@@ -218,10 +271,8 @@ restore_secret(const char* data)
  * I can't send serial to the teensy through the normal ports when I'm
  * monitoring serial through the Arduino application.
  */
-constexpr const size_t k_buffer_size = 4;
-byte g_input_buffer[k_buffer_size];
 
-bool
+int
 receive_serial_input()
 {
   constexpr byte start_marker = 16;
@@ -230,20 +281,25 @@ receive_serial_input()
   byte index = 0;
   byte rb;
 
-  // BRANCH-TASK: allow variable length messages
+  if (Serial.available()) {
+    clear_array(g_input_buffer, k_buffer_size);
+  }
+
+  // TODO: return the size of the data in the message
   while (Serial.available() > 0) {
     rb = Serial.read();
     if (found_start_marker) {
       if (rb != end_marker && index < k_buffer_size) {
         g_input_buffer[index++] = rb;
-      } else if (rb == end_marker && index == k_buffer_size) {
+      } else if (rb == end_marker && index <= k_buffer_size) {
         // buffer is full and valid end marker was found after body
-        return true;
+        return index;
       } else {
         // buffer full but no end marker
         // or end marker found with an incomplete buffer
         // reject message
-        return false;
+        // Serial.write("The message was too long.\n");
+        return 0;
       }
     } else if (rb == start_marker)
       found_start_marker = true;
@@ -251,12 +307,30 @@ receive_serial_input()
 
   // no start marker found or no serial was available
   // or message was not long enough
-  return false;
+  return 0;
 }
 
-// parse a 3-byte buffer
+struct __attribute__((packed)) MSG_STRUCT
+{
+  byte message_code;
+  byte data[255];
+};
+
+struct __attribute__((packed)) MSG_ECHO_STRUCT
+{
+  const byte* msg;
+};
+
+struct __attribute__((packed)) MSG_SET_BUTTONS_STRUCT
+{
+  const byte message_code;
+  const int pedal_index;
+  const int mode;
+  const int inversion;
+};
+
 void
-parse_message()
+parse_message(int size)
 {
   // First byte is the message code.
   // The remaining (3) bytes are dependent on the message code.
@@ -264,29 +338,32 @@ parse_message()
   // TODO: convert to switch statement
   // switch (name)
   if (MSG_IDENTIFY == message_code) {
-    // return an identifier code
-    // auto buffer_length = k_buffer_size + 2
-    // byte output[buffer_length] = {16, 4, k_board_id, 0, 17};
+    // Return an identifier code
+    // I only use one board at a time.
     Serial.write("footmouse\n");
   } else if (MSG_CLEAR_BUTTONS == message_code) {
-    // special case command to reset to default
+    // Special case command to reset to defaults.
     for (int i = 0; i < NUM_OF_PEDALS; ++i) {
       button_array[i].reset_to_defaults();
     }
   } else if (MSG_SET_SECRET == message_code) {
     // TASK: enable variable length messages up to a max byte count.
-    /*
-     * Assume UTF-8 encoded characters.
-     * Set the null terminated string as the secret.
-     */
+    // set_secret(static_cast<const byte*>(&g_input_buffer + 1))
   } else if (MSG_KEYBOARD_TYPE_SECRET == message_code) {
-    /* code */
-
+    // An empty block
+  } else if (MSG_ECHO == message_code) {
+    // Serial.write("footmouse\n");
+    // const char* message = reinterpret_cast<char*>(&g_input_buffer + 1);
+    auto data = reinterpret_cast<MSG_ECHO_STRUCT*>(g_input_buffer + 1);
+    Serial.write(reinterpret_cast<const char*>(data->msg));
+    // Serial.write("\n");
+    // log("reinterpret_cast message:");
+    // log(message);
   } else if (MSG_SET_BUTTONS == message_code) {
     const auto pedal_index = static_cast<int>(g_input_buffer[1]);
     const auto mode = static_cast<int>(g_input_buffer[2]);
     const auto inversion = static_cast<int>(g_input_buffer[3]);
-    if (valid_buttons(pedal_index, mode, inversion)) {
+    if (valid_button_parameters(pedal_index, mode, inversion)) {
       button_array[pedal_index].mode = static_cast<int>(mode);
       button_array[pedal_index].is_inverted = static_cast<bool>(inversion);
     }
@@ -341,10 +418,6 @@ setup()
   pinMode(LBUTTON_PIN, INPUT);
   pinMode(MBUTTON_PIN, INPUT);
   pinMode(RBUTTON_PIN, INPUT);
-
-  auto memory_size = EEPROM.length();
-  log("memory size:");
-  log(memory_size);
 }
 
 void
@@ -386,7 +459,8 @@ loop()
 
   // Enable programs on my PC to alter the behavior of my foot
   // mouse.  Check the serial port for incoming bytes every loop.
-  if (receive_serial_input()) {
-    parse_message();
+  int size = receive_serial_input();
+  if (size) {
+    parse_message(size);
   }
 }
