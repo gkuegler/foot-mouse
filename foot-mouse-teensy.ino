@@ -1,12 +1,15 @@
 /*
-BOARD INFO & CONFIGURATION SETTINGS:
+BOARD INFO & COMPILE CONFIGURATION SETTINGS:
 Teensy 4.0
 USB Type: Serial + Keyboard + Mouse + Joystick
 CPU Speed: 24MHz (set to minimum for efficiency)
 Optimize: fastest (because why not)
-LITTLE-ENDIAN
 
-Upload Steps:
+CPU DETAILS:
+little-endian
+sizeof(integer) == 4 bytes
+
+UPLOAD STEPS:
 1. Set board family
 2. Set USB type (links in needed libraries for mouse & serial)
 3. Set desired clock speed
@@ -43,6 +46,7 @@ idea for scrolling mode:
 
 #define BOUNCE_TIME 20      // milliseconds
 #define RESIDENCE_TIME 3000 // milliseconds
+#define MAX_STR_LENGTH 256  // milliseconds
 
 /*
 UNIT DESCRIPTIONS:
@@ -117,37 +121,22 @@ enum MessageCode
   MSG_IDENTIFY = 4,
   MSG_SET_BUTTONS = 5,
   MSG_CLEAR_BUTTONS = 6,
-  MSG_SET_SECRET = 7,
-  MSG_KEYBOARD_TYPE_SECRET = 8,
-  MSG_ECHO = 9
+  MSG_ECHO = 7,
+  MSG_SET_TEMP = 8,
+  MSG_KEYBOARD_TYPE_TEMP = 9,
+  MSG_SET_VAULT = 10,
+  MSG_KEYBOARD_TYPE_VAULT = 11,
 };
-// clang-format on
 
 // The Arduino compiler does not like the Mozilla style for template
-// declarations
+// declarations. I need to temporarily turn formatting off.
 
 // Template for debugging to serial monitor
+// // clang-format off
 // template<class T>
 // void
 // log(unsigned char* msg)
-// {
-//   if (DEBUG && Serial) {
-//     // if DEBUG is on this will fail if no serial monitor
-//     Serial.println(msg);
-//   }
-// }
-
-// void
-// log(int msg)
-// {
-//   if (DEBUG && Serial) {
-//     // if DEBUG is on this will fail if no serial monitor
-//     Serial.println(msg);
-//   }
-// }
-
-// void
-// log(void* msg)
+// // clang-format on
 // {
 //   if (DEBUG && Serial) {
 //     // if DEBUG is on this will fail if no serial monitor
@@ -165,6 +154,9 @@ public:
   int default_mode;
   int default_is_inverted;
 
+  int previous__mode;
+  int previous_is_inverted;
+
   // The way this code is written, the button state doesn't matter,
   // only if it changes.
   int state = 0;
@@ -179,6 +171,9 @@ public:
 
     default_mode = mode_;
     default_is_inverted = is_inverted_;
+
+    previous__mode = mode_;
+    previous_is_inverted = is_inverted_;
   }
 
   void set_mode(int mode_, int is_inverted_)
@@ -186,6 +181,13 @@ public:
     mode = mode_;
     is_inverted = is_inverted_;
   }
+  void stash_mode(int mode_, int is_inverted_)
+  {
+    previous__mode = mode;
+    previous_is_inverted = is_inverted;
+    this->set_mode(mode_, is_inverted_);
+  }
+  void pop_mode() { this->set_mode(previous__mode, previous_is_inverted); }
 
   void reset_to_defaults()
   {
@@ -222,10 +224,10 @@ Button button_array[] = {  // button defaults
 // clang-format on
 
 // BRANCH-TASK: create a secret buffer
-constexpr const int k_secret_size = 256;
-byte g_secret_buffer[k_secret_size];
+constexpr const int k_secret_size = MAX_STR_LENGTH;
+byte g_temp_buffer[k_secret_size] = { 'x', 'x', 'x', '\0' };
 
-constexpr const int k_buffer_size = 256;
+constexpr const int k_buffer_size = MAX_STR_LENGTH;
 byte g_input_buffer[k_buffer_size];
 
 ////////////////////////////////////////////////////////////////
@@ -243,11 +245,15 @@ int
 strcpy(byte* destination, const byte* source)
 {
   for (int i = 0;; i++) {
-    const byte c = source[i];
-    if ('\0' != c) {
-      destination[i] = c;
-    } else {
+    byte c = source[i];
+    Keyboard.write(c);
+    destination[i] = c;
+    if ('\0' == c) {
       return i;
+    }
+    if (i >= MAX_STR_LENGTH) {
+      // A safety in case I forgot a null terminator.
+      return -1;
     }
   }
 };
@@ -273,20 +279,83 @@ valid_button_parameters(const int pedal_index,
 }
 
 bool
-set_secret(const byte* data)
+set_temp(const byte* data)
 {
-  clear_array(g_secret_buffer, k_secret_size);
-  if (strcpy(g_secret_buffer, data) == 0) {
+  clear_array(g_temp_buffer, k_secret_size);
+  if (strcpy(g_temp_buffer, data) == 0) {
     return false;
   } else {
     return true;
   }
 }
 
-byte*
-get_secret()
+void
+type_temp()
 {
-  return g_secret_buffer;
+  // For testing
+  // Serial.print((char*)g_temp_buffer);;
+  Keyboard.print((char*)g_temp_buffer);
+}
+
+// BRANCH-TASK: glue use library
+void
+load_test_into_eeprom()
+{
+  auto count = "welcome\0";
+  for (int i = 0;; i++) {
+    auto c = count[i];
+    EEPROM.update(i, c);
+    if ('\0' == c) {
+      break;
+    }
+    if (i > 255) {
+      // A safety in case I forgot a null terminator.
+      break;
+    }
+  }
+}
+
+bool
+set_vault(const byte* data)
+{
+
+  // EEPROM.update(i, c);
+  for (int i = 0;; i++) {
+    byte c = data[i];
+    EEPROM.update(i, c);
+    if ('\0' == c) {
+      break;
+    }
+    if (i >= MAX_STR_LENGTH) {
+      // A safety in case I forgot a null terminator.
+      break;
+    }
+  }
+  return true;
+}
+
+void
+type_vault()
+{
+  // For testing
+  // int start = 0;
+  // auto count = EEPROM.read(start++);
+  // // BRANCH-TASK: see if this makes sense
+  // for (int i = start; i < count + start; i++) {
+  //   // Serial.write((char*)EEPROM.read(i));
+  //   Keyboard.write((char*)EEPROM.read(i));
+  // }
+  // int start = 0;
+  // auto count = EEPROM.read(start++);
+  // BRANCH-TASK: see if this makes sense
+  for (int i = 0;; i++) {
+    auto c = (char)EEPROM.read(i);
+    if ('\0' != c) {
+      Keyboard.write(c);
+    } else {
+      break;
+    }
+  }
 }
 
 /**
@@ -373,10 +442,11 @@ parse_message()
 {
   // First byte is the message code.
   // The remaining (3) bytes are dependent on the message code.
-  byte* data = g_input_buffer;
   // HEADER
-  int offset = 1;
-  const auto message_code = data[0];
+  // int offset = 1;
+  const auto message_code = g_input_buffer[0];
+  byte* data = g_input_buffer + 1;
+  Serial.println((char*)g_input_buffer);
   switch (message_code) {
     case MSG_IDENTIFY:
       // Return an identifier code
@@ -391,23 +461,32 @@ parse_message()
       }
       break;
 
-    case MSG_SET_SECRET:
-      // TASK: enable variable length messages up to a max byte count.
-      // set_secret(static_cast<const byte*>(&g_input_buffer + 1))
+    case MSG_SET_TEMP:
+      set_temp(data);
+      Serial.print(static_cast<char*>(data));
       break;
 
-    case MSG_KEYBOARD_TYPE_SECRET:
-      // An empty block
+    case MSG_KEYBOARD_TYPE_TEMP:
+      type_temp();
+      break;
+
+    case MSG_SET_VAULT:
+      set_vault(data);
+      break;
+
+    case MSG_KEYBOARD_TYPE_VAULT:
+      type_vault();
       break;
 
     case MSG_ECHO:
-      Serial.print(reinterpret_cast<char*>(data + offset));
+      Serial.println(reinterpret_cast<char*>(data));
+      // Serial.print("echo test\n");
       break;
 
     case MSG_SET_BUTTONS:
-      const auto pedal_index = static_cast<int>(data[offset]);
-      const auto mode = static_cast<int>(data[offset + 1]);
-      const auto inversion = static_cast<int>(data[offset + 2]);
+      const auto pedal_index = static_cast<int>(data[0]);
+      const auto mode = static_cast<int>(data[1]);
+      const auto inversion = static_cast<int>(data[2]);
 
       if (valid_button_parameters(pedal_index, mode, inversion)) {
         button_array[pedal_index].set_mode(mode, inversion);
@@ -455,15 +534,18 @@ void
 setup()
 {
   Serial.begin(9600);
-  // log("starting foot-mouse");
+  // Serial.println("starting foot-mouse");
 
   // not sure why don't need to call Keyboard.begin() as well
   Mouse.begin();
 
-  // I use external pull-up resistors, I find they are more reliable
+  // I use external pull-up resistors, they are more stable.
   pinMode(LBUTTON_PIN, INPUT);
   pinMode(MBUTTON_PIN, INPUT);
   pinMode(RBUTTON_PIN, INPUT);
+
+  // For EEPROM testing.
+  // load_test_into_eeprom();
 }
 
 void
@@ -491,9 +573,11 @@ loop()
     // Clearing action when the battle has been engaged for too long.
     //
     // The pedal has now been engaged for too long.
-    // } else if (button.is_inactive == false && reading == button.state &&
+    // } else if (button.is_inactive == false && reading == button.state
+    // &&
     //            button.should_engage(reading) &&
-    //            (current_time - button.last_debounce_time) > RESIDENCE_TIME)
+    //            (current_time - button.last_debounce_time) >
+    //            RESIDENCE_TIME)
     //            {
     //   button.is_inactive = true;
     //   // Keyboard.press(MODIFIERKEY_CTRL);

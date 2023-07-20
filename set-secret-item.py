@@ -5,11 +5,13 @@ import threading, time
 
 # command message identifiers
 MSG_IDENTIFY = 4
-MSG_SET = 5
-MSG_RESET_BUTTONS = 6
-MSG_SET_SECRET = 7
-MSG_KEYBOARD_TYPE_SECRET = 8
-MSG_ECHO = 9
+MSG_SET_BUTTONS = 5
+MSG_CLEAR_BUTTONS = 6
+MSG_ECHO = 7
+MSG_SET_TEMP = 8
+MSG_KEYBOARD_TYPE_TEMP = 9
+MSG_SET_VAULT = 10
+MSG_KEYBOARD_TYPE_VAULT = 11
 
 PORT = "COM3"
 
@@ -18,14 +20,15 @@ def send_serial(msg):
     # the 16 & 17 are start and stop markers
     constructed_msg = bytes([16, *msg, 17])
     print(f"[send_serial] constructed_msg: {constructed_msg}")
-    with serial.Serial(PORT, 9600, write_timeout=1, timeout=2) as s:
+    with serial.Serial(PORT, 9600, write_timeout=1, timeout=0.5) as s:
         s.write(constructed_msg)
         s.flush()
         # time.sleep(2)
         # print(f" in_waiting: { s.in_waiting}")
         # result = s.read_until("\n")
-        result = s.readline()
-        print(f"result: {result}")
+        for i in range(10):
+            if result := s.readline():
+                print(f"result: {result}")
 
         # if get_read:
         #     readline_result = s.readline()
@@ -47,6 +50,20 @@ def echo_test():
     #     print("no result from echo test")
 
 
+def set_temporary(text):
+    msg = text.encode(encoding="ASCII", errors='strict')
+    # Null terminated string.
+    send_serial([MSG_SET_TEMP, *msg, 0x00])
+
+
+def type_temporary():
+    send_serial([MSG_KEYBOARD_TYPE_TEMP])
+
+
+def main():
+    pass
+
+
 # Run a test enumerating all serial ports.
 if __name__ == "__main__":
     # Note that you can't send serial messages
@@ -56,8 +73,10 @@ if __name__ == "__main__":
     print(serial.tools.list_ports.main())
     print("-----------------------")
 
-    # import threading, time
-    # t = threading.Thread(target=echo_test)
-    # t.start()
-    # t.join(timeout=2)
-    echo_test()
+    import threading, time
+    t = threading.Thread(target=echo_test)
+    t.start()
+    t.join(timeout=5)
+    # echo_test()
+    # set_temporary("hello world!")
+    # type_temporary()
