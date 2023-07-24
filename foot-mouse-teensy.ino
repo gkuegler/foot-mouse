@@ -71,10 +71,11 @@ unit. If this  happens:
 TODO: add an initial check to detected number of pedals connected?
 */
 
+// available models
 #define MODEL_2 2
 #define MODEL_3 3
 
-#define MODEL_NUMBER MODEL_3
+#define MODEL_NUMBER MODEL_2
 
 // changes  value
 
