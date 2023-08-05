@@ -1,8 +1,6 @@
 import serial
 import serial.tools.list_ports
 
-import threading, time
-
 # command message identifiers
 MSG_IDENTIFY = 4
 MSG_SET_BUTTONS = 5
@@ -13,8 +11,7 @@ MSG_KEYBOARD_TYPE_TEMP = 9
 MSG_SET_VAULT = 10
 MSG_KEYBOARD_TYPE_VAULT = 11
 
-PORT = "COM3"
-
+PORT = "COM4"
 
 def send_serial(msg):
     # the 16 & 17 are start and stop markers
@@ -23,23 +20,12 @@ def send_serial(msg):
     with serial.Serial(PORT, 9600, write_timeout=1, timeout=1) as s:
         s.write(constructed_msg)
         s.flush()
-        # time.sleep(2)
-        # print(f" in_waiting: { s.in_waiting}")
-        # result = s.read_until("\n")
-        for i in range(10):
-            if result := s.readline():
-                print(f"result: {result}")
-
-        # if get_read:
-        #     readline_result = s.readline()
-        #     print(f"readline_result: {readline_result}")
-        #     return readline_result
-        # else:
-        #     return True
+        if result := s.readline():
+            print(f"result: {result}")
 
 
 def echo_test():
-    msg = "hello world".encode(encoding="ASCII", errors='strict')
+    msg = "hello world!".encode(encoding="ASCII", errors='strict')
     # Null terminated string.
     send_serial([MSG_ECHO, *msg, 0x00])
 
@@ -52,6 +38,16 @@ def set_temporary(text):
 
 def type_temporary():
     send_serial([MSG_KEYBOARD_TYPE_TEMP])
+
+
+def set_vault(text):
+    msg = text.encode(encoding="ASCII", errors='strict')
+    # Null terminated string.
+    send_serial([MSG_SET_VAULT, *msg, 0x00])
+
+
+def type_vault():
+    send_serial([MSG_KEYBOARD_TYPE_VAULT])
 
 
 def main():

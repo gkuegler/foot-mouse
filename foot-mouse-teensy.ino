@@ -16,8 +16,8 @@ UPLOAD STEPS:
 4. Set code optimization level
 5. Use "Get Board Info" to find correct COM port
 6. Verify & compile code
-7. Push reset button on physical board (Paul's utility will auto-upload on
-reset)
+7. Push reset button on physical board (Paul's utility will
+auto-upload on reset)
 
 NOTE:
 To get serial communications from the board,
@@ -27,7 +27,8 @@ e.g. "Serial + Keyboard + Mouse + Joystick"
 you can't monitor serial and send from typical port
 
 pedal up -> closes circuit -> pin pulled low
-pedal down -> opens circuit -> pin pulled high via external resistor
+pedal down -> opens circuit -> pin pulled high via external
+resistor
 
 idea for scrolling mode:
 1. send single byte message to server
@@ -54,32 +55,34 @@ idea for scrolling mode:
 
 /*
 UNIT DESCRIPTIONS:
-model number 1 is the pro-micro board (with 1 foot pedal & switch)
-  It's not supported by this sketch.
-model number 2 is the teensy at-home unit (with 2 foot pedals)
-model number 3 is the teensy at-work unit (with 3 foot pedals)
+model number 1 is the pro-micro board (with 1 foot pedal &
+switch) It's not supported by this sketch. model number 2 is the
+teensy at-home unit (with 2 foot pedals) model number 3 is the
+teensy at-work unit (with 3 foot pedals)
 
 WARNING: the os will be hosed if NUM_OF_PEDALS does not match
 the  number of  pedals are not physically plugged into the
 unit. If this  happens:
   1. unplug microcontroller
   2. put computer to sleep and wake up to reset modifier keypress
-  3. recompile fixed code and make sure Paul's loader tool is running
-  4. hold reset button while plugging microcontroller back in to pc
+  3. recompile fixed code and make sure Paul's loader tool is
+running
+  4. hold reset button while plugging microcontroller back in to
+pc
   5. press reset button within 1 second of being plugged
       in (just to be sure)
-TODO: add an initial check to detected number of pedals connected?
+TODO: add an initial check to detected number of pedals
+connected?
 */
 
 // available models
 #define MODEL_2 2
 #define MODEL_3 3
 
+// Set the model/unit number for the pedal I'm compiling for
 #define MODEL_NUMBER MODEL_2
 
-// changes  value
-
-#if MODEL_NUMBER == 2
+#if MODEL_NUMBER == MODEL_2
 constexpr int NUM_OF_PEDALS = 2;
 #define BOARD_ID 2;
 #define LBUTTON_PIN 2
@@ -87,8 +90,8 @@ constexpr int NUM_OF_PEDALS = 2;
 #define RBUTTON_PIN 7
 #endif // MODEL_NUMBER
 
-#if MODEL_NUMBER == 3
-constexpr int NUM_OF_PEDALS = 3; // Set to 3 to enable right click
+#if MODEL_NUMBER == MODEL_3
+constexpr int NUM_OF_PEDALS = 3;
 #define BOARD_ID 3;
 #define LBUTTON_PIN 4
 #define MBUTTON_PIN 5
@@ -115,10 +118,6 @@ enum Mode
   MACRO_SCROLL = 32,
 };
 
-#define PEDAL_1_DEFAULT_MODE MODE_MOUSE_LEFT
-#define PEDAL_2_DEFAULT_MODE MODE_MOUSE_MIDDLE
-#define PEDAL_3_DEFAULT_MODE MODE_MOUSE_RIGHT
-
 enum MessageCode
 {
   MSG_IDENTIFY = 4,
@@ -131,8 +130,9 @@ enum MessageCode
   MSG_KEYBOARD_TYPE_VAULT = 11,
 };
 
-// The Arduino compiler does not like the Mozilla style for template
-// declarations. I need to temporarily turn formatting off.
+// The Arduino compiler does not like the Mozilla style for
+// template declarations. I need to temporarily turn formatting
+// off.
 
 // Template for debugging to serial monitor
 // clang-format off
@@ -158,8 +158,8 @@ public:
   int previous__mode;
   int previous_is_inverted;
 
-  // The way this code is written, the button state doesn't matter,
-  // only if it changes.
+  // The way this code is written, the button state doesn't
+  // matter, only if it changes.
   int state = 0;
   unsigned long last_change_time = 0;
   bool is_inactive = false;
@@ -188,13 +188,17 @@ public:
     previous_is_inverted = is_inverted;
     this->set_mode(mode_, is_inverted_);
   }
-  void pop_mode() { this->set_mode(previous__mode, previous_is_inverted); }
+  void pop_mode()
+  {
+    this->set_mode(previous__mode, previous_is_inverted);
+  }
 
   void reset_to_defaults()
   {
     switch (mode) {
       // For left, right, and middle button modes, the mode
-      // number corresponds  to the Mouse library button constant.
+      // number corresponds  to the Mouse library button
+      // constant.
       case MODE_MOUSE_LEFT:
       case MODE_MOUSE_RIGHT:
       case MODE_MOUSE_MIDDLE:
@@ -218,9 +222,9 @@ public:
 
 // clang-format off
 Button button_array[] = {  // button defaults
-  Button(LBUTTON_PIN, PEDAL_1_DEFAULT_MODE, true),
-  Button(MBUTTON_PIN, PEDAL_2_DEFAULT_MODE, false),
-  Button(RBUTTON_PIN, PEDAL_3_DEFAULT_MODE, false)
+  Button(LBUTTON_PIN, MODE_MOUSE_LEFT, true),
+  Button(MBUTTON_PIN, MODE_MOUSE_MIDDLE, false),
+  Button(RBUTTON_PIN, MODE_MOUSE_RIGHT, false)
 };
 // clang-format on
 
@@ -246,6 +250,7 @@ string_copy(char* destination, const char* source)
   for (int i = 0;; i++) {
     auto c = source[i];
     destination[i] = c;
+    Serial.write(c);
     if ('\0' == source[i]) {
       return i;
     }
@@ -267,7 +272,8 @@ valid_button_parameters(const int pedal_index,
   if (pedal_index < 0 || pedal_index >= NUM_OF_PEDALS) {
     return false;
   }
-  if (mode <= 0) { // not checking if above maximum mode constant value
+  if (mode <=
+      0) { // not checking if above maximum mode constant value
     return false;
   }
   if (inversion < 0 || inversion > 1) {
@@ -277,7 +283,7 @@ valid_button_parameters(const int pedal_index,
 }
 
 bool
-set_temp(const char* data)
+set_keyboard_buffer(const char* data)
 {
   clear_array(g_temp_buffer, k_secret_size);
   if (string_copy(g_temp_buffer, data) == 0) {
@@ -288,7 +294,7 @@ set_temp(const char* data)
 }
 
 void
-type_temp()
+type_keyboard_buffer()
 {
   // For testing
   // Serial.print((char*)g_temp_buffer);
@@ -330,9 +336,10 @@ type_vault()
  * Receiving serial input is used to change pedal mode
  * through the use of scripts on the host pc.
  *
- * Note that I use no log statements to debug serial communications.
- * I can't send serial to the teensy through the normal ports when I'm
- * monitoring serial through the Arduino application.
+ * Note that I use no log statements to debug serial
+ * communications. I can't send serial to the teensy through the
+ * normal ports when I'm monitoring serial through the Arduino
+ * application.
  */
 
 bool
@@ -355,7 +362,8 @@ receive_serial_input()
       if (rb != end_marker && index < k_buffer_size) {
         g_input_buffer[index++] = rb;
       } else if (rb == end_marker && index <= k_buffer_size) {
-        // buffer is full and valid end marker was found after body
+        // buffer is full and valid end marker was found after
+        // body
         return true;
       } else {
         // buffer full but no end marker
@@ -401,12 +409,13 @@ handle_message()
     // Load the data received into the temporary buffer (using
     // teensy RAM).
     case MSG_SET_TEMP:
-      set_temp((const char*)data);
+      set_keyboard_buffer((const char*)data);
       break;
 
-      // Type out the c - string loaded into the temporary buffer.
+      // Type out the c - string loaded into the temporary
+      // buffer.
     case MSG_KEYBOARD_TYPE_TEMP:
-      type_temp();
+      type_keyboard_buffer();
       break;
 
     case MSG_SET_VAULT:
@@ -427,7 +436,8 @@ handle_message()
       const auto mode = static_cast<int>(data[1]);
       const auto inversion = static_cast<int>(data[2]);
 
-      if (valid_button_parameters(pedal_index, mode, inversion)) {
+      if (valid_button_parameters(
+            pedal_index, mode, inversion)) {
         button_array[pedal_index].set_mode(mode, inversion);
       }
       break;
@@ -506,13 +516,16 @@ loop()
       button.state = reading;
       button.last_change_time = current_time;
 
-      pedal_operation(button.mode, button.should_engage(reading));
+      pedal_operation(button.mode,
+                      button.should_engage(reading));
     }
 
-    // Clearing action when the button has been engaged for too long.
+    // Clearing action when the button has been engaged for too
+    // long.
 
     // The pedal has now been engaged for too long.
-    // } else if (button.is_inactive == false && reading == button.state
+    // } else if (button.is_inactive == false && reading ==
+    // button.state
     // &&
     //            button.should_engage(reading) &&
     //            (current_time - button.last_change_time) >
