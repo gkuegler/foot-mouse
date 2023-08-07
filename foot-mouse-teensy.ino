@@ -80,7 +80,7 @@ connected?
 #define MODEL_3 3
 
 // Set the model/unit number for the pedal I'm compiling for
-#define MODEL_NUMBER MODEL_2
+#define MODEL_NUMBER MODEL_3
 
 #if MODEL_NUMBER == MODEL_2
 constexpr int NUM_OF_PEDALS = 2;
@@ -116,6 +116,7 @@ enum Mode
   MODE_MOUSE_DOUBLE = 8,
   MACRO_CTRL_CLICK = 16,
   MACRO_SCROLL = 32,
+  MACRO_SCROLL_ANYWHERE = 64,
 };
 
 enum MessageCode
@@ -272,8 +273,8 @@ valid_button_parameters(const int pedal_index,
   if (pedal_index < 0 || pedal_index >= NUM_OF_PEDALS) {
     return false;
   }
-  if (mode <=
-      0) { // not checking if above maximum mode constant value
+  // not checking if above maximum possible value
+  if (mode <= 0) { 
     return false;
   }
   if (inversion < 0 || inversion > 1) {
@@ -476,6 +477,13 @@ pedal_operation(int mode, bool engage)
       Keyboard.press(KEY_F18);
       Keyboard.release(KEY_F18);
       break;
+    case MACRO_SCROLL_ANYWHERE:
+      if (engage ){
+        Keyboard.press(KEY_F20);
+      }
+      else {
+        Keyboard.release(KEY_F20);
+      }
   }
 }
 
