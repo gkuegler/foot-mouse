@@ -407,18 +407,20 @@ handle_message()
       }
       break;
 
-    // Load the data received into the temporary buffer (using
-    // teensy RAM).
+    // Load the null terminated c-string received into
+    // the temporary buffer (using teensy RAM).
     case MSG_SET_TEMP:
       set_keyboard_buffer((const char*)data);
       break;
 
-      // Type out the c - string loaded into the temporary
+      // Type out the null terminated c-string loaded into the temporary
       // buffer.
     case MSG_KEYBOARD_TYPE_TEMP:
       type_keyboard_buffer();
       break;
 
+    // Load the null terminated c-string received into
+    // the onboard EEPROM.
     case MSG_SET_VAULT:
       set_vault((const char*)data);
       break;
@@ -427,11 +429,14 @@ handle_message()
       type_vault();
       break;
 
-    case MSG_ECHO:
-      Serial.println((char*)data);
+    // Echo back the message payload over serial.
+    // Used for testing.
+    case MSG_ECHO:    
+      Serial.println((const char*)data);
       // Serial.println("echo test");
       break;
 
+    // Change the mode of a pedal.
     case MSG_SET_BUTTONS:
       const auto pedal_index = static_cast<int>(data[0]);
       const auto mode = static_cast<int>(data[1]);
@@ -478,7 +483,7 @@ pedal_operation(int mode, bool engage)
       Keyboard.release(KEY_F18);
       break;
     case MACRO_SCROLL_ANYWHERE:
-      if (engage ){
+      if (engage){
         Keyboard.press(KEY_F20);
       }
       else {
