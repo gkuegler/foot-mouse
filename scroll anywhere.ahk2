@@ -1,0 +1,46 @@
+#Requires AutoHotkey v2
+#SingleInstance Force
+; AutoHotkey Script
+
+; This is for the laptop mode
+; Don't forget the insert key should also be changed in dragon to
+; toggle the microphone
+;
+; Notes on Modifiers:
+; ^ = contol
+; + = shift
+; ! = alt
+; # = Windows
+
+#UseHook
+SetKeyDelay(-1)
+#Hotstring O  ; omit ending space after hot string
+
+; Remember, variables have to be declared before any key mappings!
+
+screen_height := 1200
+halfway := screen_height / 2
+
+ScrollWindow() {
+    ; TODO: use screen percentages?
+    CoordMode("Mouse", "Screen")
+    x := 0
+    y := 0
+    ; Check if key is still pressed.
+    While GetKeyState("F20", "P") {
+        MouseGetPos(&x, &y)
+        ; If cursor is in the top half of the screen.
+        if (y < halfway) {
+            SendInput("{WheelUp}")
+            s := 0.25 * y - 50
+            Sleep(Max(s, 1))
+        }
+        else {
+            SendInput("{WheelDown}")
+            s := -0.25 * y + 250
+            Sleep(Max(s, 1))
+        }
+    }
+}
+
+F20:: ScrollWindow()
