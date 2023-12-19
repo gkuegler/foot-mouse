@@ -123,8 +123,7 @@ enum MessageCode
   MSG_SET_BUTTONS = 5,
   MSG_CLEAR_BUTTONS = 6,
   MSG_ECHO = 7,
-  MSG_SET_TEMP = 8,
-  MSG_KEYBOARD_TYPE_TEMP = 9,
+  MSG_SEND_ASCII_KEYS = 8,
   MSG_SET_VAULT = 10,
   MSG_KEYBOARD_TYPE_VAULT = 11,
 };
@@ -215,26 +214,28 @@ Button button_array[] = {
 };
 // clang-format on
 
-// clang-format off
-template<class T>
-void clear_array(T& array, int size) {
-  // clang-format on
-  memset(array, 0, size);
-}
+constexpr const int k_buffer_size = MAX_STR_LENGTH;
+byte g_input_buffer[k_buffer_size];
 
+/*
+ * Copy the contents of source null terminated
+ * string into destination.
+ * Return the number of characters copied.
+ * Returns -1 if the buffer wasn't big enough.
+ */
 int
 string_copy(char* destination, const char* source)
 {
   for (int i = 0;; i++) {
-    auto c = source[i];
-    destination[i] = c;
-    Serial.write(c);
-    if ('\0' == source[i]) {
-      return i;
-    }
     // Protect against buffer overruns.
     if (i >= MAX_STR_LENGTH) {
       return -1;
+    }
+
+    const auto c = source[i];
+    destination[i] = c;
+    if ('\0' == c) {
+      return i;
     }
   }
 };
@@ -264,22 +265,18 @@ valid_button_parameters(const int pedal_index,
 /**
  * Save a string of characters to persistent storage.
  */
-bool
+void
 set_vault(const char* data)
 {
-  for (int i = 0;; i++) {
+  // Protect against buffer overruns.
+  for (int i = 0; i < MAX_STR_LENGTH; i++) {
     byte c = data[i];
     EEPROM.update(i, c);
     if ('\0' == c) {
       break;
     }
-
-    // Protect against buffer overruns.
-    if (i >= MAX_STR_LENGTH) {
-      break;
-    }
   }
-  return true;
+  return;
 }
 
 /**
@@ -289,8 +286,21 @@ set_vault(const char* data)
 void
 type_vault()
 {
-  for (int i = 0;; i++) {
+  for (int i = 0; i < MAX_STR_LENGTH; i++) {
     auto c = (char)EEPROM.read(i);
+    if ('\0' != c) {
+      Keyboard.write(c);
+    } else {
+      break;
+    }
+  }
+}
+
+void
+type_string(const char* text)
+{
+  for (int i = 0; i < MAX_STR_LENGTH; i++) {
+    const char c = text[i];
     if ('\0' != c) {
       Keyboard.write(c);
     } else {
@@ -317,7 +327,7 @@ receive_serial_input()
   byte index = 0;
   byte rb;
 
-  memset(g_input_buffer, 0, k_buffer_size);
+  memset((void*)g_input_buffer, 0, k_buffer_size);
 
   // TODO: return the size of the data in the message?
   while (Serial.available() > 0) {
@@ -374,16 +384,9 @@ handle_message()
       }
       break;
 
-    // Load the null terminated c-string received into
-    // the temporary buffer (using teensy RAM).
-    case MSG_SET_TEMP:
-      set_keyboard_buffer((const char*)data);
-      break;
-
-      // Type out the null terminated c-string loaded into the temporary
-      // buffer.
-    case MSG_KEYBOARD_TYPE_TEMP:
-      type_keyboard_buffer();
+    // Send hardware character keystrokes to computer.
+    case MSG_SEND_ASCII_KEYS:
+      type_string((const char*)data);
       break;
 
     // Load the null terminated c-string received into
