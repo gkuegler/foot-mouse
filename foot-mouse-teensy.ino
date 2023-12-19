@@ -71,13 +71,11 @@ running
 pc
   5. press reset button within 1 second of being plugged
       in (just to be sure)
-TODO: add an initial check to detected number of pedals
-connected?
 */
 
 // available models
-#define MODEL_2 2
-#define MODEL_3 3
+#define MODEL_2 2 // teensy at-home unit (with 2 foot pedals)
+#define MODEL_3 3 // teensy at-work unit (with 3 foot pedals)
 
 // Set the model/unit number for the pedal I'm compiling for
 #define MODEL_NUMBER MODEL_3
@@ -102,11 +100,11 @@ constexpr int NUM_OF_PEDALS = 3;
 #define PEDAL_UP 0
 
 // These constants are from Paul's mouse library.
-// I use the mode as the button to press to save memory and code
-// brevity.
-static_assert(MOUSE_LEFT == 1, "Voice commands will fail");
-static_assert(MOUSE_RIGHT == 2, "Voice commands will fail");
-static_assert(MOUSE_MIDDLE == 4, "Voice commands will fail");
+// I use these constants as my mode enum to save memory and
+// for code brevity.
+static_assert(MOUSE_LEFT == 1, "Mouse constants have changed.");
+static_assert(MOUSE_RIGHT == 2, "Mouse constants have changed.");
+static_assert(MOUSE_MIDDLE == 4, "Mouse constants have changed.");
 
 enum Mode
 {
@@ -115,7 +113,7 @@ enum Mode
   MODE_MOUSE_MIDDLE = MOUSE_MIDDLE,
   MODE_MOUSE_DOUBLE = 8,
   MACRO_CTRL_CLICK = 16,
-  MACRO_SCROLL = 32,
+  MACRO_SCROLL_BAR = 32,
   MACRO_SCROLL_ANYWHERE = 64,
 };
 
@@ -134,9 +132,9 @@ enum MessageCode
 // The Arduino compiler does not like the Mozilla style for
 // template declarations. I need to temporarily turn formatting
 // off.
+// clang-format off
 
 // Template for debugging to serial monitor
-// clang-format off
 template<class T>
 void log(T msg)
 // clang-format on
@@ -156,15 +154,14 @@ public:
   int default_mode;
   int default_is_inverted;
 
-  int previous__mode;
+  int previous_mode;
   int previous_is_inverted;
 
-  // The way this code is written, the button state doesn't
-  // matter, only if it changes.
   int state = 0;
   unsigned long last_change_time = 0;
   bool is_inactive = false;
 
+  Button() = delete;
   Button(int pin_number, int mode_, int is_inverted_)
   {
     pin = pin_number;
@@ -173,9 +170,6 @@ public:
 
     default_mode = mode_;
     default_is_inverted = is_inverted_;
-
-    previous__mode = mode_;
-    previous_is_inverted = is_inverted_;
   }
 
   void set_mode(int mode_, int is_inverted_)
@@ -183,19 +177,10 @@ public:
     mode = mode_;
     is_inverted = is_inverted_;
   }
-  void stash_mode(int mode_, int is_inverted_)
-  {
-    previous__mode = mode;
-    previous_is_inverted = is_inverted;
-    this->set_mode(mode_, is_inverted_);
-  }
-  void pop_mode()
-  {
-    this->set_mode(previous__mode, previous_is_inverted);
-  }
 
   void reset_to_defaults()
   {
+    // Clear any currently enabled buttons.
     switch (mode) {
       // For left, right, and middle button modes, the mode
       // number corresponds  to the Mouse library button
@@ -222,21 +207,13 @@ public:
 ////////////////////////////////////////////////////////////////
 
 // clang-format off
-Button button_array[] = {  // button defaults
+// Buttons and their defaults.
+Button button_array[] = { 
   Button(LBUTTON_PIN, MODE_MOUSE_LEFT, true),
   Button(MBUTTON_PIN, MODE_MOUSE_MIDDLE, false),
   Button(RBUTTON_PIN, MODE_MOUSE_RIGHT, false)
 };
 // clang-format on
-
-// BRANCH-TASK: create a secret buffer
-constexpr const int k_secret_size = MAX_STR_LENGTH;
-char g_temp_buffer[k_secret_size] = { 'x', 'x', 'x', '\0' };
-
-constexpr const int k_buffer_size = MAX_STR_LENGTH;
-byte g_input_buffer[k_buffer_size];
-
-////////////////////////////////////////////////////////////////
 
 // clang-format off
 template<class T>
@@ -255,26 +232,27 @@ string_copy(char* destination, const char* source)
     if ('\0' == source[i]) {
       return i;
     }
-    // A safety clause in case I forgot a null terminator.
+    // Protect against buffer overruns.
     if (i >= MAX_STR_LENGTH) {
       return -1;
     }
   }
 };
 
+/**
+ * Check if the button parameters are valid.
+ */
 bool
 valid_button_parameters(const int pedal_index,
                         const int mode,
                         const int inversion)
-/**
- * Check if the button parameters are valid.
- */
 {
   if (pedal_index < 0 || pedal_index >= NUM_OF_PEDALS) {
     return false;
   }
-  // not checking if above maximum possible value
-  if (mode <= 0) { 
+  // Intentionally not checking if above maximum possible value
+  // for ease of development.
+  if (mode <= 0) {
     return false;
   }
   if (inversion < 0 || inversion > 1) {
@@ -283,43 +261,31 @@ valid_button_parameters(const int pedal_index,
   return true;
 }
 
-bool
-set_keyboard_buffer(const char* data)
-{
-  clear_array(g_temp_buffer, k_secret_size);
-  if (string_copy(g_temp_buffer, data) == 0) {
-    return false;
-  } else {
-    return true;
-  }
-}
-
-void
-type_keyboard_buffer()
-{
-  // For testing
-  // Serial.print((char*)g_temp_buffer);
-  Keyboard.print((char*)g_temp_buffer);
-}
-
+/**
+ * Save a string of characters to persistent storage.
+ */
 bool
 set_vault(const char* data)
 {
-  // TODO: record total number of writes to EEPROM?
   for (int i = 0;; i++) {
     byte c = data[i];
     EEPROM.update(i, c);
     if ('\0' == c) {
       break;
     }
+
+    // Protect against buffer overruns.
     if (i >= MAX_STR_LENGTH) {
-      // A safety in case I forgot a null terminator.
       break;
     }
   }
   return true;
 }
 
+/**
+ * Type out the contents of persistent storage
+ * with keystrokes.
+ */
 void
 type_vault()
 {
@@ -342,7 +308,6 @@ type_vault()
  * normal ports when I'm monitoring serial through the Arduino
  * application.
  */
-
 bool
 receive_serial_input()
 {
@@ -352,32 +317,30 @@ receive_serial_input()
   byte index = 0;
   byte rb;
 
-  if (Serial.available()) {
-    clear_array(g_input_buffer, k_buffer_size);
-  }
+  memset(g_input_buffer, 0, k_buffer_size);
 
-  // TODO: return the size of the data in the message
+  // TODO: return the size of the data in the message?
   while (Serial.available() > 0) {
     rb = Serial.read();
     if (found_start_marker) {
       if (rb != end_marker && index < k_buffer_size) {
         g_input_buffer[index++] = rb;
       } else if (rb == end_marker && index <= k_buffer_size) {
-        // buffer is full and valid end marker was found after
-        // body
+        // Buffer is full and valid end marker was found after
+        // the message body.
         return true;
       } else {
-        // buffer full but no end marker
-        // or end marker found with an incomplete buffer
-        // reject message
+        // Buffer full but no end marker
+        // or end marker found with an incomplete buffer.
+        // Reject the message.
         // Serial.write("The message was too long.\n");
-        return false;
+        return 0;
       }
     } else if (rb == start_marker)
       found_start_marker = true;
   }
 
-  // no start marker found or no serial was available
+  // No start marker found or no serial was available
   // or message was not long enough
   return false;
 }
@@ -385,14 +348,18 @@ receive_serial_input()
 // Possible future scheme using structs.
 // struct __attribute__((packed)) ButtonParameters{};
 
+/**
+ * Decode and handle the message.
+ */
 void
 handle_message()
 {
   // First byte is the message code.
   // The remaining bytes are dependent on the message code.
-  const auto message_code = g_input_buffer[0];
-  byte* data = g_input_buffer + 1;
+  const int message_code = g_input_buffer[0];
+  const byte* data = g_input_buffer + 1;
   log((char*)g_input_buffer);
+
   switch (message_code) {
     // Return an identifier code to confirm this is the board I
     // want to send serial commands to.
@@ -431,7 +398,7 @@ handle_message()
 
     // Echo back the message payload over serial.
     // Used for testing.
-    case MSG_ECHO:    
+    case MSG_ECHO:
       Serial.println((const char*)data);
       // Serial.println("echo test");
       break;
@@ -442,8 +409,7 @@ handle_message()
       const auto mode = static_cast<int>(data[1]);
       const auto inversion = static_cast<int>(data[2]);
 
-      if (valid_button_parameters(
-            pedal_index, mode, inversion)) {
+      if (valid_button_parameters(pedal_index, mode, inversion)) {
         button_array[pedal_index].set_mode(mode, inversion);
       }
       break;
@@ -454,8 +420,8 @@ void
 pedal_operation(int mode, bool engage)
 {
   switch (mode) {
-    // for left, right, and middle button modes, the mode number
-    // corresponds to the Mouse library button constant
+    // For left, right, and middle button modes, the mode enum
+    // corresponds to the Mouse Library button constant value.
     case MODE_MOUSE_LEFT:
     case MODE_MOUSE_RIGHT:
     case MODE_MOUSE_MIDDLE:
@@ -465,11 +431,11 @@ pedal_operation(int mode, bool engage)
         Mouse.release(mode);
       }
       break;
-    case MODE_MOUSE_DOUBLE: // double-click
+    case MODE_MOUSE_DOUBLE:
       Mouse.click();
       Mouse.click();
       break;
-    case MACRO_CTRL_CLICK: // fire off the keyboard macro
+    case MACRO_CTRL_CLICK:
       if (engage) {
         Keyboard.press(MODIFIERKEY_CTRL);
         delay(20);
@@ -478,15 +444,21 @@ pedal_operation(int mode, bool engage)
         Keyboard.release(MODIFIERKEY_CTRL);
       }
       break;
-    case MACRO_SCROLL: // toggle scrolling with desktop program
+    // This hotkey locks the mouse to the left or right side of the
+    // display where a scrollbar or a scroll map is.
+    // Is implemented in my head tracking to mouse program
+    // called TrackIRMouse.
+    case MACRO_SCROLL_BAR:
       Keyboard.press(KEY_F18);
       Keyboard.release(KEY_F18);
       break;
+      // Autohotkey script used to trigger scrollwheel commans.
+      // Scroll up/down messages are sent at a speed relative to
+      // how far near the top or bottom my mouse pointer is.A
     case MACRO_SCROLL_ANYWHERE:
-      if (engage){
+      if (engage) {
         Keyboard.press(KEY_F20);
-      }
-      else {
+      } else {
         Keyboard.release(KEY_F20);
       }
   }
@@ -496,11 +468,12 @@ void
 setup()
 {
   Serial.begin(9600);
-  // log("starting foot-mouse");
 
-  // not sure why don't need to call Keyboard.begin() as well
+  // Note: Not sure why don't need to call
+  // Keyboard.begin() as well
   Mouse.begin();
 
+  // Set up input pins.
   // I use external pull-up resistors, they are more stable.
   pinMode(LBUTTON_PIN, INPUT);
   pinMode(MBUTTON_PIN, INPUT);
@@ -515,7 +488,7 @@ loop()
 {
   unsigned long current_time = millis();
 
-  // Check each button
+  // Check each button.
   for (int i = 0; i < NUM_OF_PEDALS; i++) {
     auto& button = button_array[i];
     int reading = digitalRead(button.pin);
@@ -529,32 +502,13 @@ loop()
       button.state = reading;
       button.last_change_time = current_time;
 
-      pedal_operation(button.mode,
-                      button.should_engage(reading));
+      pedal_operation(button.mode, button.should_engage(reading));
     }
-
-    // Clearing action when the button has been engaged for too
-    // long.
-
-    // The pedal has now been engaged for too long.
-    // } else if (button.is_inactive == false && reading ==
-    // button.state
-    // &&
-    //            button.should_engage(reading) &&
-    //            (current_time - button.last_change_time) >
-    //            RESIDENCE_TIME)
-    //            {
-    //   button.is_inactive = true;
-    //   // Keyboard.press(MODIFIERKEY_CTRL);
-    //   // delay(20);
-    //   // Keyboard.release(MODIFIERKEY_CTRL);
-    //   pedal_operation(button.mode, false);
-    // }
   }
 
-  // Enable programs on my PC to alter the behavior of my foot
-  // mouse by sending commands over serial.
-  if (receive_serial_input()) {
-    handle_message();
+  if (Serial.available()) {
+    if (receive_serial_input()) {
+      handle_message();
+    }
   }
 }
