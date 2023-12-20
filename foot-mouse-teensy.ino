@@ -121,7 +121,7 @@ enum MessageCode
 {
   MSG_IDENTIFY = 4,
   MSG_SET_BUTTONS = 5,
-  MSG_CLEAR_BUTTONS = 6,
+  MSG_RESET_BUTTONS_TO_DEFAULT = 6,
   MSG_ECHO = 7,
   MSG_SEND_ASCII_KEYS = 8,
   MSG_SET_VAULT = 10,
@@ -327,6 +327,7 @@ receive_serial_input()
   byte index = 0;
   byte rb;
 
+  // Clear the input buffer.
   memset((void*)g_input_buffer, 0, k_buffer_size);
 
   // TODO: return the size of the data in the message?
@@ -336,15 +337,14 @@ receive_serial_input()
       if (rb != end_marker && index < k_buffer_size) {
         g_input_buffer[index++] = rb;
       } else if (rb == end_marker && index <= k_buffer_size) {
-        // Buffer is full and valid end marker was found after
-        // the message body.
+        // A valid end marker was found before
+        // the buffer was full.
         return true;
       } else {
-        // Buffer full but no end marker
-        // or end marker found with an incomplete buffer.
+        // Buffer full but no end marker.
         // Reject the message.
         // Serial.write("The message was too long.\n");
-        return 0;
+        return false;
       }
     } else if (rb == start_marker)
       found_start_marker = true;
@@ -378,8 +378,8 @@ handle_message()
       break;
 
     // Reset all buttons to defaults.
-    case MSG_CLEAR_BUTTONS:
-      for (int i = 0; i < NUM_OF_PEDALS; ++i) {
+    case MSG_RESET_BUTTONS_TO_DEFAULT:
+      for (int i = 0; i < NUM_OF_PEDALS; i++) {
         button_array[i].reset_to_defaults();
       }
       break;
