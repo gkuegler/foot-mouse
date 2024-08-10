@@ -105,21 +105,6 @@ enum MessageCode
   MSG_KEYBOARD_TYPE_VAULT = 11,
 };
 
-// The Arduino compiler does not like the Mozilla style for
-// template declarations. I need to temporarily turn formatting
-// off.
-// clang-format off
-
-// Template for debugging to serial monitor
-template<class T>
-void log(T msg)
-// clang-format on
-{
-  if (DEBUG && Serial) {
-    log(msg);
-  }
-}
-
 class Button
 {
 public:
@@ -345,7 +330,6 @@ handle_message()
   // The remaining bytes are dependent on the message code.
   const int message_code = g_input_buffer[0];
   const byte* data = g_input_buffer + 1;
-  log((char*)g_input_buffer);
 
   switch (message_code) {
     // Return an identifier code to confirm this is the board I
