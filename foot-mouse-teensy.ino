@@ -443,9 +443,8 @@ setup()
 {
   Serial.begin(9600);
 
-  // Note: Not sure why don't need to call
-  // Keyboard.begin() as well
-  Mouse.begin();
+  Mouse.begin();    // actually an empty function
+  Keyboard.begin(); // actually an empty function
 
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
