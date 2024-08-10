@@ -1,2 +1,3 @@
 # Unfortunately the Arduino compiler does not like the Mozilla style for some things
 BasedOnStyle: Mozilla
+AlignConsecutiveMacros: true

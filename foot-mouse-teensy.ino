@@ -45,7 +45,7 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define BOUNCE_TIME 20      // milliseconds
+#define BOUNCE_TIME    20   // milliseconds
 #define RESIDENCE_TIME 3000 // milliseconds
 #define MAX_STR_LENGTH 256
 
@@ -67,30 +67,31 @@ pins are properly pulled high. If this happens:
 4. Hold reset button while plugging microcontroller back in to pc.
 */
 
-constexpr int NUM_OF_PEDALS = 3;
-#define LBUTTON_PIN 4
-#define MBUTTON_PIN 5
-#define RBUTTON_PIN 6
+#define NUM_OF_PEDALS    3
+#define PEDAL_PIN_LEFT   4
+#define PEDAL_PIN_MIDDLE 5
+#define PEDAL_PIN_RIGHT  6
 
 #define PEDAL_DOWN 1
-#define PEDAL_UP 0
+#define PEDAL_UP   0
 
-// These constants are from Paul's mouse library.
+// These constants are from Paul's mouse library 'Mouse.h'.
 // I use these constants as my mode enum to save memory and
 // for code brevity.
 static_assert(MOUSE_LEFT == 1, "Mouse constants have changed.");
 static_assert(MOUSE_RIGHT == 2, "Mouse constants have changed.");
 static_assert(MOUSE_MIDDLE == 4, "Mouse constants have changed.");
 
-enum Mode
+enum PedalMode
 {
-  MODE_MOUSE_LEFT = MOUSE_LEFT,
-  MODE_MOUSE_RIGHT = MOUSE_RIGHT,
-  MODE_MOUSE_MIDDLE = MOUSE_MIDDLE,
-  MODE_MOUSE_DOUBLE = 8,
-  MACRO_CTRL_CLICK = 16,
-  MACRO_SCROLL_BAR = 32,
-  MACRO_SCROLL_ANYWHERE = 64,
+  MODE_MOUSE_LEFT = MOUSE_LEFT,     // left mouse button
+  MODE_MOUSE_RIGHT = MOUSE_RIGHT,   // right mouse button
+  MODE_MOUSE_MIDDLE = MOUSE_MIDDLE, // middle mouse button
+  MODE_MOUSE_DOUBLE = 8,            // double left-click
+  MODE_CTRL_CLICK = 16,             // control left-click
+  MODE_SCROLL_BAR = 32,             // uses special function
+                                    // keys to trigger script running on desktop
+  MODE_SCROLL_ANYWHERE = 64
 };
 
 enum MessageCode
@@ -184,9 +185,9 @@ public:
 // clang-format off
 // Buttons and their defaults.
 Button button_array[] = { 
-  Button(LBUTTON_PIN, MODE_MOUSE_LEFT, true),
-  Button(MBUTTON_PIN, MODE_MOUSE_MIDDLE, false),
-  Button(RBUTTON_PIN, MODE_MOUSE_RIGHT, false)
+  Button(PEDAL_PIN_LEFT, MODE_MOUSE_LEFT, true),
+  Button(PEDAL_PIN_MIDDLE, MODE_MOUSE_MIDDLE, false),
+  Button(PEDAL_PIN_RIGHT, MODE_MOUSE_RIGHT, false)
 };
 // clang-format on
 
@@ -414,7 +415,7 @@ pedal_operation(int mode, bool engage)
       Mouse.click();
       Mouse.click();
       break;
-    case MACRO_CTRL_CLICK:
+    case MODE_CTRL_CLICK:
       if (engage) {
         Keyboard.press(MODIFIERKEY_CTRL);
         delay(20);
@@ -427,14 +428,14 @@ pedal_operation(int mode, bool engage)
     // display where a scrollbar or a scroll map is.
     // Is implemented in my head tracking to mouse program
     // called TrackIRMouse.
-    case MACRO_SCROLL_BAR:
+    case MODE_SCROLL_BAR:
       Keyboard.press(KEY_F18);
       Keyboard.release(KEY_F18);
       break;
       // Autohotkey script used to trigger scrollwheel commans.
       // Scroll up/down messages are sent at a speed relative to
       // how far near the top or bottom my mouse pointer is.A
-    case MACRO_SCROLL_ANYWHERE:
+    case MODE_SCROLL_ANYWHERE:
       if (engage) {
         Keyboard.press(KEY_F20);
       } else {
@@ -454,9 +455,9 @@ setup()
 
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
-  pinMode(LBUTTON_PIN, INPUT);
-  pinMode(MBUTTON_PIN, INPUT);
-  pinMode(RBUTTON_PIN, INPUT);
+  pinMode(PEDAL_PIN_LEFT, INPUT);
+  pinMode(PEDAL_PIN_MIDDLE, INPUT);
+  pinMode(PEDAL_PIN_RIGHT, INPUT);
 
   // For EEPROM testing.
   // set_vault("EEPROM test value");
