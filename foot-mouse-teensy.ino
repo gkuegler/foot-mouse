@@ -55,46 +55,22 @@ idea for scrolling mode:
 
 /*
 UNIT DESCRIPTIONS:
-model number 1 is the pro-micro board (with 1 foot pedal &
-switch) It's not supported by this sketch. model number 2 is the
-teensy at-home unit (with 2 foot pedals) model number 3 is the
-teensy at-work unit (with 3 foot pedals)
+Model number 1 is the pro-micro board (with 1 foot pedal &
+mode switch). It's not supported by this sketch.
+Model number 2 is the teensy unit with 3 pedals.
 
-WARNING: the os will be hosed if NUM_OF_PEDALS does not match
-the  number of  pedals are not physically plugged into the
-unit. If this  happens:
-  1. unplug microcontroller
-  2. put computer to sleep and wake up to reset modifier keypress
-  3. recompile fixed code and make sure Paul's loader tool is
-running
-  4. hold reset button while plugging microcontroller back in to
-pc
-  5. press reset button within 1 second of being plugged
-      in (just to be sure)
+WARNING: the os will be hosed all of the button
+pins are properly pulled high. If this happens:
+1. Unplug microcontroller.
+2. Put computer to sleep and wake up to reset modifier keypress.
+3. Recompile fixed code and make sure Paul's loader tool is running.
+4. Hold reset button while plugging microcontroller back in to pc.
 */
 
-// available models
-#define MODEL_2 2 // teensy at-home unit (with 2 foot pedals)
-#define MODEL_3 3 // teensy at-work unit (with 3 foot pedals)
-
-// Set the model/unit number for the pedal I'm compiling for
-#define MODEL_NUMBER MODEL_3
-
-#if MODEL_NUMBER == MODEL_2
-constexpr int NUM_OF_PEDALS = 2;
-#define BOARD_ID 2;
-#define LBUTTON_PIN 2
-#define MBUTTON_PIN 5
-#define RBUTTON_PIN 7
-#endif // MODEL_NUMBER
-
-#if MODEL_NUMBER == MODEL_3
 constexpr int NUM_OF_PEDALS = 3;
-#define BOARD_ID 3;
 #define LBUTTON_PIN 4
 #define MBUTTON_PIN 5
 #define RBUTTON_PIN 6
-#endif // MODEL_NUMBER
 
 #define PEDAL_DOWN 1
 #define PEDAL_UP 0
