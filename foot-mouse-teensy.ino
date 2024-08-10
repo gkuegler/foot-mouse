@@ -38,9 +38,6 @@ idea for scrolling mode:
     to release the middle click
 */
 
-// BRANCH NOTES:
-// BRANCH-TASK: use the EEPROM library to access 1080 bytes for
-// storing the secret phrase.
 #include <EEPROM.h>
 #include <Keyboard.h>
 #include <Mouse.h>
@@ -82,15 +79,28 @@ static_assert(MOUSE_LEFT == 1, "Mouse constants have changed.");
 static_assert(MOUSE_RIGHT == 2, "Mouse constants have changed.");
 static_assert(MOUSE_MIDDLE == 4, "Mouse constants have changed.");
 
+/**
+ * PEDAL MODE DESCRIPTIONS:
+ * MODE_MOUSE_LEFT: left mouse button
+ * MODE_MOUSE_RIGHT: right mouse button
+ * MODE_MOUSE_MIDDLE: middle mouse button
+ * MODE_MOUSE_DOUBLE: double left-click
+ * MODE_CTRL_CLICK: control left-click
+ * MODE_SCROLL_BAR: Locks mouse to to the horizontal scroll bar area. The Teensy
+ * sends one of the rarely function keys (F18) and a program running on the
+ * desktop captures this keypress to control the cursor. MODE_SCROLL_ANYWHERE:
+ * Triggers scroll wheel up/down events depending on the vertical position of
+ * the cursor. The Teensy sends one of the rarely function keys (F20) and a
+ * program running on the desktop captures this keypress to control the cursor.
+ */
 enum PedalMode
 {
-  MODE_MOUSE_LEFT = MOUSE_LEFT,     // left mouse button
-  MODE_MOUSE_RIGHT = MOUSE_RIGHT,   // right mouse button
-  MODE_MOUSE_MIDDLE = MOUSE_MIDDLE, // middle mouse button
-  MODE_MOUSE_DOUBLE = 8,            // double left-click
-  MODE_CTRL_CLICK = 16,             // control left-click
-  MODE_SCROLL_BAR = 32,             // uses special function
-                                    // keys to trigger script running on desktop
+  MODE_MOUSE_LEFT = MOUSE_LEFT,
+  MODE_MOUSE_RIGHT = MOUSE_RIGHT,
+  MODE_MOUSE_MIDDLE = MOUSE_MIDDLE,
+  MODE_MOUSE_DOUBLE = 8,
+  MODE_CTRL_CLICK = 16,
+  MODE_SCROLL_BAR = 32,
   MODE_SCROLL_ANYWHERE = 64
 };
 
@@ -102,7 +112,7 @@ enum MessageCode
   MSG_ECHO = 7,
   MSG_SEND_ASCII_KEYS = 8,
   MSG_SET_VAULT = 10,
-  MSG_KEYBOARD_TYPE_VAULT = 11,
+  MSG_KEYBOARD_TYPE_VAULT = 11
 };
 
 class Button
