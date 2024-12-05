@@ -42,8 +42,9 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define BOUNCE_TIME    20   // milliseconds
-#define RESIDENCE_TIME 3000 // milliseconds
+#define DEBOUNCE_TRG 5    // milliseconds
+#define DEBOUNCE_RST 20   // milliseconds
+#define DWELL_TIME 2000
 #define MAX_STR_LENGTH 256
 
 // NOTE: Opening the serial monitor on Arduino IDE will lock
@@ -118,40 +119,39 @@ enum MessageCode
 class Button
 {
 public:
+  int default_mode;
+  int default_inverted;
+
   int pin;
   int mode;
-  int is_inverted;
-
-  int default_mode;
-  int default_is_inverted;
-
-  int previous_mode;
-  int previous_is_inverted;
+  int inverted;  
 
   int state = 0;
+  // int looking_for_input = 0;
+  // unsigned long initial_trig_time = 0;
   unsigned long last_change_time = 0;
   bool is_inactive = false;
 
   Button() = delete;
-  Button(int pin_number, int mode_, int is_inverted_)
+  Button(int pin_, int default_mode_, int inverted_)
   {
-    pin = pin_number;
-    mode = mode_;
-    is_inverted = is_inverted_;
+    pin = pin_;
+    mode = default_mode_;
+    inverted = inverted_;
 
-    default_mode = mode_;
-    default_is_inverted = is_inverted_;
+    default_mode = default_mode_;
+    default_inverted = inverted_;
   }
 
-  void set_mode(int mode_, int is_inverted_)
+  void set_mode(int mode_, int inverted_)
   {
     mode = mode_;
-    is_inverted = is_inverted_;
+    inverted = inverted_;
   }
 
   void reset_to_defaults()
   {
-    // Clear any currently enabled buttons.
+    // Release any potenitally help down mouse buttons.
     switch (mode) {
       // For left, right, and middle button modes, the mode
       // number corresponds  to the Mouse library button
@@ -163,13 +163,13 @@ public:
         break;
     }
     mode = default_mode;
-    is_inverted = default_is_inverted;
+    inverted = default_inverted;
   }
 
   bool should_engage(int reading)
   {
-    return (is_inverted && reading == PEDAL_UP) ||
-           (!is_inverted && reading == PEDAL_DOWN);
+    return (inverted && reading == PEDAL_UP) ||
+           (!inverted && reading == PEDAL_DOWN);
   }
 };
 
@@ -463,19 +463,19 @@ loop()
 
   // Check each button.
   for (int i = 0; i < NUM_OF_PEDALS; i++) {
-    auto& button = button_array[i];
-    int reading = digitalRead(button.pin);
+    auto& b = button_array[i];
+    int r = digitalRead(b.pin);
 
     // If the switch has changed, and it's been long enough since
-    // the last  button press.
-    if (reading != button.state &&
-        (current_time - button.last_change_time) > BOUNCE_TIME) {
+    // the last button press begin input.
+    if ((r != b.state) &&
+      ((current_time - b.last_change_time) > DEBOUNCE_RST)) {
 
-      button.is_inactive = false;
-      button.state = reading;
-      button.last_change_time = current_time;
+      b.is_inactive = false;
+      b.state = r;
+      b.last_change_time = current_time;
 
-      pedal_operation(button.mode, button.should_engage(reading));
+      pedal_operation(b.mode, b.should_engage(r));
     }
   }
 
