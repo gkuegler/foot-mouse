@@ -19,17 +19,17 @@ modes = {
     "anywhere": 64,
 }
 
-# command message identifiers
+# Command codes.
 MSG_IDENTIFY = 4
-MSG_SET_BUTTONS = 5
+MSG_SET_BUTTON_FUNCTION = 5
 MSG_RESET_BUTTONS_TO_DEFAULT = 6
 MSG_ECHO = 7
-MSG_SEND_ASCII_KEYS = 8
-MSG_SET_VAULT = 10
-MSG_KEYBOARD_TYPE_VAULT = 11
+MSG_TYPE_ASCII_STR = 8
+MSG_SET_SAVED_ASCII_STR = 10
+MSG_TYPE_SAVED_ASCII_STR = 11
 
 
-def MemoizeNoArgs(function):
+def MemoizeCallNoArgs(function):
     """Decorator to cache function calls with no arguments."""
     sentinel = object()
     value = sentinel
@@ -71,7 +71,7 @@ def send_serial(port, buf: list[int], block_for_response=False):
             return True
 
 
-@MemoizeNoArgs
+@MemoizeCallNoArgs
 def find_foot_mouse_com_port() -> str | None:
     """
     Find the COM port of my footmouse device.
@@ -105,7 +105,7 @@ def send_to_foot_pedal(buf: list[int], block_for_response=False):
 
 
 def toggle_mode(pedal: int, mode: int, inverted: int):
-    return send_to_foot_pedal([MSG_SET_BUTTONS, pedal, mode, inverted])
+    return send_to_foot_pedal([MSG_SET_BUTTON_FUNCTION, pedal, mode, inverted])
 
 
 def reset_mode():
@@ -116,19 +116,21 @@ def type_char(text: str):
     "Send ASCII characters to be typed out by the hardware."
     # Null terminated string.
     return send_to_foot_pedal([
-        MSG_SEND_ASCII_KEYS, *text.encode(encoding="ASCII", errors='strict'),
+        MSG_TYPE_ASCII_STR, *text.encode(encoding="ASCII", errors='strict'),
         0x00
     ])
 
 
 def set_stored_string(text: str):
     # Null terminated string.
-    send_to_foot_pedal(
-        [MSG_SET_VAULT, *text.encode(encoding="ASCII", errors='strict'), 0x00])
+    send_to_foot_pedal([
+        MSG_SET_SAVED_ASCII_STR,
+        *text.encode(encoding="ASCII", errors='strict'), 0x00
+    ])
 
 
 def type_stored_string():
-    send_to_foot_pedal([MSG_KEYBOARD_TYPE_VAULT])
+    send_to_foot_pedal([MSG_TYPE_SAVED_ASCII_STR])
 
 
 def echo_test():
