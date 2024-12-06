@@ -42,9 +42,11 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define DEBOUNCE_TRG   5  // milliseconds
-#define DEBOUNCE_RST   20 // milliseconds
-#define DWELL_TIME     2000
+#include "elapsedMillis.hpp"
+
+#define SAMPLE_COUNT   3
+#define POLL_PERIOD_US 200
+#define DEBOUNCE_RESET 20000 // micorseconds
 #define MAX_STR_LENGTH 256
 
 // NOTE: Opening the serial monitor on Arduino IDE will lock
@@ -70,8 +72,9 @@ pins are properly pulled high. If this happens:
 #define PEDAL_PIN_MIDDLE 5
 #define PEDAL_PIN_RIGHT  6
 
-#define PEDAL_DOWN 1
-#define PEDAL_UP   0
+// Yahmaho foot pedal behaviors.
+#define DIGITAL_READ_PEDAL_DOWN 1
+#define DIGITAL_READ_PEDAL_UP   0
 
 // These constants are from Paul's mouse library 'Mouse.h'.
 // I use these constants as my mode enum to save memory and
@@ -126,11 +129,9 @@ public:
   int mode;
   int inverted;
 
-  int state = 0;
-  // int looking_for_input = 0;
-  // unsigned long initial_trig_time = 0;
+  int state = DIGITAL_READ_PEDAL_UP;
+  uint32_t samples;
   unsigned long last_change_time = 0;
-  bool is_inactive = false;
 
   Button() = delete;
   Button(int pin_, int default_mode_, int inverted_)
@@ -166,10 +167,32 @@ public:
     inverted = default_inverted;
   }
 
-  bool should_engage(int reading)
+  bool should_engage()
   {
-    return (inverted && reading == PEDAL_UP) ||
-           (!inverted && reading == PEDAL_DOWN);
+    return (inverted && (state == DIGITAL_READ_PEDAL_UP)) ||
+           (!inverted && (state == DIGITAL_READ_PEDAL_DOWN));
+  }
+
+  /* Returns true if reuquested action. */
+  bool sample(int s, unsigned long time)
+  {
+    const uint32_t mask = static_cast<uint32_t>(-1) >> (SAMPLE_COUNT);
+
+    samples = mask & ((samples << 1) | s);
+
+    if ((time - last_change_time) > DEBOUNCE_RESET) {
+      last_change_time = time;
+
+      if (state == 1 && samples == 0) {
+        state = 0;
+        return true;
+      } else if (state == 0 && samples == mask) {
+        state = 1;
+        return true;
+      }
+    }
+
+    return false;
   }
 };
 
@@ -391,7 +414,7 @@ handle_message()
 }
 
 void
-pedal_operation(int mode, bool engage)
+send_input(int mode, bool engage)
 {
   switch (mode) {
     // For left, right, and middle button modes, the mode enum
@@ -456,26 +479,30 @@ setup()
   // set_vault("EEPROM test value");
 }
 
+elapsedMicros since_poll;
+// unsinged long elepsed = 0;
+// unsigned long previous = 0;
+
 void
 loop()
 {
-  unsigned long current_time = millis();
+  unsigned long time = micros();
+  // TODO: remove dep on Pauls's elapsedMicros for ease of understanding
+  // unsigned long elapsed = previous - time;
+  // unsigned long previous = time;
 
-  // Check each button.
-  for (int i = 0; i < NUM_OF_PEDALS; i++) {
-    auto& b = button_array[i];
-    int r = digitalRead(b.pin);
+  // if (elapsed > POLL_PERIOD_US) {
+  //   previous -= ? ? ? ? ? ?
 
-    // If the switch has changed, and it's been long enough since
-    // the last button press begin input.
-    if ((r != b.state) &&
-        ((current_time - b.last_change_time) > DEBOUNCE_RST)) {
+  if (since_poll >= POLL_PERIOD_US) {
+    since_poll = since_poll - POLL_PERIOD_US;
 
-      b.is_inactive = false;
-      b.state = r;
-      b.last_change_time = current_time;
-
-      pedal_operation(b.mode, b.should_engage(r));
+    // Check each button.
+    for (int i = 0; i < NUM_OF_PEDALS; i++) {
+      auto& b = button_array[i];
+      if (b.sample(digitalRead(b.pin), time)) {
+        send_input(b.mode, b.should_engage());
+      }
     }
   }
 
