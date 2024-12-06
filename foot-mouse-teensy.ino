@@ -42,9 +42,9 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define DEBOUNCE_TRG 5    // milliseconds
-#define DEBOUNCE_RST 20   // milliseconds
-#define DWELL_TIME 2000
+#define DEBOUNCE_TRG   5  // milliseconds
+#define DEBOUNCE_RST   20 // milliseconds
+#define DWELL_TIME     2000
 #define MAX_STR_LENGTH 256
 
 // NOTE: Opening the serial monitor on Arduino IDE will lock
@@ -124,7 +124,7 @@ public:
 
   int pin;
   int mode;
-  int inverted;  
+  int inverted;
 
   int state = 0;
   // int looking_for_input = 0;
@@ -469,7 +469,7 @@ loop()
     // If the switch has changed, and it's been long enough since
     // the last button press begin input.
     if ((r != b.state) &&
-      ((current_time - b.last_change_time) > DEBOUNCE_RST)) {
+        ((current_time - b.last_change_time) > DEBOUNCE_RST)) {
 
       b.is_inactive = false;
       b.state = r;
