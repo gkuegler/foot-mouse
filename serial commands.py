@@ -1,10 +1,11 @@
 """
 Python API for interacting with the footmouse using the serial port.
 """
-import serial  # type: ignore
-import serial.tools.list_ports  # type: ignore
-from functools import wraps
+import functools
 import inspect
+
+import serial
+import serial.tools.list_ports
 
 TEENSY_SERIAL_MSG_BUFFER_SIZE = 256
 
@@ -40,7 +41,7 @@ def MemoizeNoArgs(function):
             "Can't apply '@MemoizeNoArgs' decorator" +
             f" to function '{function.__name__}', arguments not allowed.")
 
-    @wraps(function)
+    @functools.wraps(function)
     def wrapper():
         nonlocal value
         if value != sentinel:
