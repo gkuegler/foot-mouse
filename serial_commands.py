@@ -122,7 +122,11 @@ def type_char(text: str):
 
 
 def set_stored_string(text: str):
-    # Null terminated string.
+    """
+    Set the value of the saved string.
+    String must be valid ASCII.
+    """
+    # Note: Null terminated string.
     send_to_foot_pedal([
         MSG_SET_SAVED_ASCII_STR,
         *text.encode(encoding="ASCII", errors='strict'), 0x00
