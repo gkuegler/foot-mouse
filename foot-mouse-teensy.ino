@@ -42,8 +42,8 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define GLITCH_SAMPLE_CNT 3
-#define POLL_PERIOD_US    200
+#define GLITCH_SAMPLE_CNT 5
+#define POLL_PERIOD_US    20
 #define DEBOUNCE_RESET    20000 // microseconds
 #define MAX_STR_LENGTH    256
 
@@ -520,15 +520,34 @@ setup()
 
 unsigned long previous = 0;
 
-// unsigned long time = micros();
+// TESTING: Measuring elapsed time between loop iterations.
+// 2025-03-31 Test Results:
+// (24MHz Debug Build) Avg = 4.6 µs; Max = 12 µs; Min = 4 µs
+// (600MHz Fastest with LTO) Avg = 0.1 µs; Max = 1 µs; Min = 0 µs
+// #define TEST_LOOP_ELAPSED_TIME
+#ifdef TEST_LOOP_ELAPSED_TIME
+const int TIMES_ARRAY_SIZE = 128;
+int idx_times_arr = 0;
+unsigned long times[TIMES_ARRAY_SIZE];
+#endif // TEST_LOOP_ELAPSED_TIME
 
 void
 loop()
 {
   unsigned long now = micros();
 
-  unsigned long now = micros();
-
+#ifdef TEST_LOOP_ELAPSED_TIME
+  times[idx_times_arr++] = now;
+  if (idx_times_arr >= 128) {
+    for (size_t i = 0; i < TIMES_ARRAY_SIZE; i++) {
+      Serial.print(times[i]);
+      Serial.print("\n");
+    }
+    Serial.print("Done printing times.\n");
+    Serial.flush();
+    abort();
+  }
+#endif // TEST_LOOP_ELAPSED_TIME
 
   if ((now - previous) > POLL_PERIOD_US) {
     previous = now;
