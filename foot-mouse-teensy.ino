@@ -44,10 +44,10 @@ idea for scrolling mode:
 
 #include "elapsedMillis.hpp"
 
-#define SAMPLE_COUNT   3
-#define POLL_PERIOD_US 200
-#define DEBOUNCE_RESET 20000 // micorseconds
-#define MAX_STR_LENGTH 256
+#define GLITCH_SAMPLE_CNT 3
+#define POLL_PERIOD_US    200
+#define DEBOUNCE_RESET    20000 // microseconds
+#define MAX_STR_LENGTH    256
 
 // NOTE: Opening the serial monitor on Arduino IDE will lock
 // serial access two external scripts.
@@ -139,7 +139,7 @@ public:
   int inverted;
 
   int state = DIGITAL_READ_PEDAL_UP;
-  uint32_t samples;
+  uint32_t glitch_buf = 0;
   unsigned long last_change_time = 0;
 
   Button() = delete;
@@ -182,23 +182,35 @@ public:
            (!inverted && (state == DIGITAL_READ_PEDAL_DOWN));
   }
 
-  /* Returns true if reuquested action. */
-  bool sample(int s, unsigned long time)
+  /**
+   * Returns true if an action is requested.
+   * 's' should be a result of digitalRead(), either 0 or 1.
+   */
+  bool sample(int s, unsigned long now)
   {
-    const uint32_t mask = static_cast<uint32_t>(-1) >> (SAMPLE_COUNT);
+    // const uint32_t mask = static_cast<uint32_t>(-1) >> (SAMPLE_COUNT);
+    // The bit mask is responsible for ignoring short glitches on the GPIO pins.
+    // A minimum number of sequential samples must be all high or all low to
+    // change state. The glitch duration is determined by POLL_PERIOD_US *
+    // GLITCH_SAMPLE_CNT.
+    const uint32_t mask = static_cast<uint32_t>(-1) >> (32 - GLITCH_SAMPLE_CNT);
 
-    samples = mask & ((samples << 1) | s);
+    glitch_buf = mask & ((glitch_buf << 1) | s);
 
-    if ((time - last_change_time) > DEBOUNCE_RESET) {
-      last_change_time = time;
+    // The debounce reset is used to acheive longer debounce times on the pedal
+    // reset.
+    if ((now - last_change_time) < DEBOUNCE_RESET) {
+      return false;
+    }
 
-      if (state == 1 && samples == 0) {
-        state = 0;
-        return true;
-      } else if (state == 0 && samples == mask) {
-        state = 1;
-        return true;
-      }
+    last_change_time = now;
+
+    if (state == 1 && glitch_buf == 0) {
+      state = 0;
+      return true;
+    } else if (state == 0 && glitch_buf == mask) {
+      state = 1;
+      return true;
     }
 
     return false;
@@ -225,7 +237,7 @@ Button button_array[] = {
 constexpr const int k_buffer_size = MAX_STR_LENGTH;
 byte g_input_buffer[k_buffer_size];
 
-/*
+/**
  * Copy the contents of source null terminated
  * string into destination.
  * Return the number of characters copied.
@@ -475,6 +487,7 @@ send_input(int mode, bool engage)
         Keyboard.release(KEY_F20);
       }
       break;
+#ifdef PROGRAM_SPECIAL
     case MODE_FUNCTION:
       if (engage) {
         Keyboard.press(SPECIAL_KEY);
@@ -482,6 +495,7 @@ send_input(int mode, bool engage)
         Keyboard.release(SPECIAL_KEY);
       }
       break;
+#endif
     default:
       break;
   }
@@ -506,15 +520,18 @@ setup()
   // set_vault("EEPROM test value");
 }
 
+// TODO: remove dependency on Pauls's elapsedMicros for ease of understanding
 elapsedMicros since_poll;
 // unsinged long elepsed = 0;
 // unsigned long previous = 0;
 
+// unsigned long time = micros();
+
 void
 loop()
 {
-  unsigned long time = micros();
-  // TODO: remove dep on Pauls's elapsedMicros for ease of understanding
+  unsigned long now = micros();
+
   // unsigned long elapsed = previous - time;
   // unsigned long previous = time;
 
@@ -527,7 +544,7 @@ loop()
     // Check each button.
     for (int i = 0; i < NUM_OF_PEDALS; i++) {
       auto& b = button_array[i];
-      if (b.sample(digitalRead(b.pin), time)) {
+      if (b.sample(digitalRead(b.pin), now)) {
         send_input(b.mode, b.should_engage());
       }
     }
