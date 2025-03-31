@@ -76,6 +76,14 @@ pins are properly pulled high. If this happens:
 #define DIGITAL_READ_PEDAL_DOWN 1
 #define DIGITAL_READ_PEDAL_UP   0
 
+// Tempoary keyboard shortcut programming. The special key is used to send
+// keystrokes to the computer (i.e. F24) that can't be replicated on my keyboard
+// when I am trying to set keyboard shortcuts on devices (and in programs) that
+// require the key to be pressed and captured. For example, programming Logitech
+// mouses.
+// #define SPECIAL_KEY KEY_F23
+// #define PROGRAM_SPECIAL
+
 // These constants are from Paul's mouse library 'Mouse.h'.
 // I use these constants as my mode enum to save memory and
 // for code brevity.
@@ -105,7 +113,8 @@ enum PedalMode
   MODE_MOUSE_DOUBLE = 8,
   MODE_CTRL_CLICK = 16,
   MODE_SCROLL_BAR = 32,
-  MODE_SCROLL_ANYWHERE = 64
+  MODE_SCROLL_ANYWHERE = 64,
+  MODE_FUNCTION = 65
 };
 
 enum MessageCode
@@ -205,7 +214,11 @@ public:
 Button button_array[] = { 
   Button(PEDAL_PIN_LEFT, MODE_MOUSE_LEFT, true),
   Button(PEDAL_PIN_MIDDLE, MODE_MOUSE_MIDDLE, false),
+#ifndef PROGRAM_SPECIAL
   Button(PEDAL_PIN_RIGHT, MODE_MOUSE_RIGHT, false)
+#else
+  Button(PEDAL_PIN_RIGHT, MODE_FUNCTION, false)
+#endif
 };
 // clang-format on
 
@@ -328,6 +341,9 @@ receive_serial_input()
   // TODO: return the size of the data in the message?
   while (Serial.available() > 0) {
     rb = Serial.read();
+    // Serial.print("get byte: ");
+    // Serial.write(rb);
+    // Serial.write("-\n");
     if (found_start_marker) {
       if (rb != end_marker && index < k_buffer_size) {
         g_input_buffer[index++] = rb;
@@ -458,6 +474,16 @@ send_input(int mode, bool engage)
       } else {
         Keyboard.release(KEY_F20);
       }
+      break;
+    case MODE_FUNCTION:
+      if (engage) {
+        Keyboard.press(SPECIAL_KEY);
+      } else {
+        Keyboard.release(SPECIAL_KEY);
+      }
+      break;
+    default:
+      break;
   }
 }
 
@@ -465,6 +491,7 @@ void
 setup()
 {
   Serial.begin(9600);
+  // Serial.write("Serial begin.");
 
   Mouse.begin();    // actually an empty function
   Keyboard.begin(); // actually an empty function
@@ -507,8 +534,13 @@ loop()
   }
 
   if (Serial.available()) {
+    // Serial.write("Serial Available\n");
+
     if (receive_serial_input()) {
       handle_message();
     }
+  } else {
+    // Serial.write("Serial Not Available\n");
   }
+  // delay(500);
 }
