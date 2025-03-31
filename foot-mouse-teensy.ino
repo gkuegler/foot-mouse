@@ -42,8 +42,6 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#include "elapsedMillis.hpp"
-
 #define GLITCH_SAMPLE_CNT 3
 #define POLL_PERIOD_US    200
 #define DEBOUNCE_RESET    20000 // microseconds
@@ -520,10 +518,7 @@ setup()
   // set_vault("EEPROM test value");
 }
 
-// TODO: remove dependency on Pauls's elapsedMicros for ease of understanding
-elapsedMicros since_poll;
-// unsinged long elepsed = 0;
-// unsigned long previous = 0;
+unsigned long previous = 0;
 
 // unsigned long time = micros();
 
@@ -532,14 +527,11 @@ loop()
 {
   unsigned long now = micros();
 
-  // unsigned long elapsed = previous - time;
-  // unsigned long previous = time;
+  unsigned long now = micros();
 
-  // if (elapsed > POLL_PERIOD_US) {
-  //   previous -= ? ? ? ? ? ?
 
-  if (since_poll >= POLL_PERIOD_US) {
-    since_poll = since_poll - POLL_PERIOD_US;
+  if ((now - previous) > POLL_PERIOD_US) {
+    previous = now;
 
     // Check each button.
     for (int i = 0; i < NUM_OF_PEDALS; i++) {
@@ -551,13 +543,9 @@ loop()
   }
 
   if (Serial.available()) {
-    // Serial.write("Serial Available\n");
 
     if (receive_serial_input()) {
       handle_message();
     }
-  } else {
-    // Serial.write("Serial Not Available\n");
   }
-  // delay(500);
 }
