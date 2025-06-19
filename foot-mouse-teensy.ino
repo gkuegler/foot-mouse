@@ -65,10 +65,11 @@ pins are properly pulled high. If this happens:
 4. Hold reset button while plugging microcontroller back in to pc.
 */
 
-#define NUM_OF_PEDALS    3
-#define PEDAL_PIN_LEFT   4
-#define PEDAL_PIN_MIDDLE 5
-#define PEDAL_PIN_RIGHT  6
+#define NUM_OF_PEDALS 3
+#define PIN_PEDAL_0   4
+#define PIN_PEDAL_1   5
+#define PIN_PEDAL_2   6
+#define PIN_PEDAL_3   7 // need to implement
 
 // Yahmaho foot pedal behaviors.
 #define DIGITAL_READ_PEDAL_DOWN 1
@@ -176,6 +177,9 @@ public:
     inverted = default_inverted;
   }
 
+  /**
+   * Apply inversion settings to the pedal position
+   */
   bool should_engage()
   {
     return (inverted && (state == DIGITAL_READ_PEDAL_UP)) ||
@@ -183,10 +187,9 @@ public:
   }
 
   /**
-   * Returns true if an action is requested.
-   * 's' should be a result of digitalRead(), either 0 or 1.
+   * De-Bouncing Filter.
    */
-  bool sample(int s, unsigned long now)
+  bool debounce(int digital_read, unsigned long now)
   {
     // const uint32_t mask = static_cast<uint32_t>(-1) >> (SAMPLE_COUNT);
     // The bit mask is responsible for ignoring short glitches on the GPIO pins.
@@ -195,7 +198,7 @@ public:
     // GLITCH_SAMPLE_CNT.
     const uint32_t mask = static_cast<uint32_t>(-1) >> (32 - GLITCH_SAMPLE_CNT);
 
-    glitch_buf = mask & ((glitch_buf << 1) | s);
+    glitch_buf = mask & ((glitch_buf << 1) | digital_read);
 
     // The debounce reset is used to acheive longer debounce times on the pedal
     // reset.
@@ -224,12 +227,12 @@ public:
 // clang-format off
 // Buttons and their defaults.
 Button button_array[] = { 
-  Button(PEDAL_PIN_LEFT, MODE_MOUSE_LEFT, true),
-  Button(PEDAL_PIN_MIDDLE, MODE_MOUSE_MIDDLE, false),
+  Button(PIN_PEDAL_0, MODE_MOUSE_LEFT, true),
+  Button(PIN_PEDAL_1, MODE_MOUSE_MIDDLE, false),
 #ifndef PROGRAM_SPECIAL
-  Button(PEDAL_PIN_RIGHT, MODE_MOUSE_RIGHT, false)
+  Button(PIN_PEDAL_2, MODE_MOUSE_RIGHT, false)
 #else
-  Button(PEDAL_PIN_RIGHT, MODE_FUNCTION, false)
+  Button(PIN_PEDAL_2, MODE_FUNCTION, false)
 #endif
 };
 // clang-format on
@@ -536,9 +539,9 @@ setup()
 
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
-  pinMode(PEDAL_PIN_LEFT, INPUT);
-  pinMode(PEDAL_PIN_MIDDLE, INPUT);
-  pinMode(PEDAL_PIN_RIGHT, INPUT);
+  pinMode(PIN_PEDAL_0, INPUT);
+  pinMode(PIN_PEDAL_1, INPUT);
+  pinMode(PIN_PEDAL_2, INPUT);
 
   // For EEPROM testing.
   // set_vault("EEPROM test value");
@@ -581,7 +584,7 @@ loop()
     // Check each button.
     for (int i = 0; i < NUM_OF_PEDALS; i++) {
       auto& b = button_array[i];
-      if (b.sample(digitalRead(b.pin), now)) {
+      if (b.debounce(digitalRead(b.pin), now)) {
         send_input(b.mode, b.should_engage());
       }
     }
