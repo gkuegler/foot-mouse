@@ -109,7 +109,9 @@ enum PedalMode
   MODE_MOUSE_RIGHT = MOUSE_RIGHT,
   MODE_MOUSE_MIDDLE = MOUSE_MIDDLE,
   MODE_MOUSE_DOUBLE = 8,
-  MODE_CTRL_CLICK = 16,
+  MODE_CTRL_CLICK = 15,
+  MODE_SHIFT_CLICK = 18,
+  MODE_SHIFT_MIDDLE_CLICK = 19,
   MODE_SCROLL_BAR = 32,
   MODE_SCROLL_ANYWHERE = 64,
   MODE_FUNCTION = 65
@@ -445,8 +447,12 @@ send_input(int mode, bool engage)
   switch (mode) {
     // For left, right, and middle button modes, the mode enum
     // corresponds to the Mouse Library button constant value.
-    case MODE_MOUSE_LEFT:
     case MODE_MOUSE_RIGHT:
+      if (engage) {
+        Mouse.click(MOUSE_RIGHT);
+      }
+      break;
+    case MODE_MOUSE_LEFT:
     case MODE_MOUSE_MIDDLE:
       if (engage) {
         Mouse.press(mode);
@@ -465,6 +471,26 @@ send_input(int mode, bool engage)
         Mouse.click(MOUSE_LEFT);
         delay(20);
         Keyboard.release(MODIFIERKEY_CTRL);
+      }
+      break;
+    case MODE_SHIFT_CLICK:
+      if (engage) {
+        Keyboard.press(MODIFIERKEY_SHIFT);
+        delay(20);
+        Mouse.press(MOUSE_LEFT);
+      } else {
+        Keyboard.release(MODIFIERKEY_SHIFT);
+        Mouse.release(MOUSE_LEFT);
+      }
+      break;
+    case MODE_SHIFT_MIDDLE_CLICK:
+      if (engage) {
+        Keyboard.press(MODIFIERKEY_SHIFT);
+        delay(20);
+        Mouse.press(MOUSE_MIDDLE);
+      } else {
+        Keyboard.release(MODIFIERKEY_SHIFT);
+        Mouse.release(MOUSE_MIDDLE);
       }
       break;
     // This hotkey locks the mouse to the left or right side of the

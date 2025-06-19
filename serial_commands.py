@@ -14,7 +14,9 @@ modes = {
     "middle": 4,
     "right": 2,
     "double": 8,
-    "control click": 16,
+    "control click": 15,
+    "shift click": 18,
+    "shift middle click": 19,
     "alternate": 32,
     "anywhere": 64,
 }
@@ -27,6 +29,9 @@ MSG_ECHO = 7
 MSG_TYPE_ASCII_STR = 8
 MSG_SET_SAVED_ASCII_STR = 10
 MSG_TYPE_SAVED_ASCII_STR = 11
+
+START_MARKER = 16
+STOP_MARKER = 17
 
 
 def MemoizeCallNoArgs(function):
@@ -59,8 +64,7 @@ def send_serial(port, buf: list[int], block_for_response=False):
                         f"Attempted '{len(buf)}' bytes" +
                         f"expected at max '{TEENSY_SERIAL_MSG_BUFFER_SIZE}'" +
                         "bytes.")
-    START_MARKER = 16
-    STOP_MARKER = 17
+
     constructed_msg = bytes([START_MARKER, *buf, STOP_MARKER])
     with serial.Serial(port, 9600, write_timeout=1, timeout=2) as s:
         s.write(constructed_msg)
@@ -104,12 +108,15 @@ def send_to_foot_pedal(buf: list[int], block_for_response=False):
         return False
 
 
-def toggle_mode(pedal: int, mode: int, inverted: int):
-    return send_to_foot_pedal([MSG_SET_BUTTON_FUNCTION, pedal, mode, inverted])
+# --- EXPORTED COMMANDS --
 
 
-def reset_mode():
+def reset_modes_to_default():
     return send_to_foot_pedal([MSG_RESET_BUTTONS_TO_DEFAULT, 0, 0, 0])
+
+
+def change_mode(pedal: int, mode: int, inverted: int):
+    return send_to_foot_pedal([MSG_SET_BUTTON_FUNCTION, pedal, mode, inverted])
 
 
 def type_char(text: str):
@@ -157,9 +164,6 @@ if __name__ == "__main__":
     print("Available serial ports:")
     print(serial.tools.list_ports.main())
     print("-----------------------")
-    # toggle_mode(1, modes["right"], 0)
-
-    import threading, time
-    t = threading.Thread(target=echo_test)
-    t.start()
-    t.join(timeout=2)
+    print(change_mode(2, modes["shift middle click"], 0))
+    # echo_test()
+    # reset_modes_to_default()
