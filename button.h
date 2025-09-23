@@ -1,0 +1,97 @@
+#ifndef FOOT_MOUSE_BUTTON_H
+#define FOOT_MOUSE_BUTTON_H
+
+#include "constants.h"
+
+class Button
+{
+public:
+  int default_mode;
+  int default_inverted;
+
+  int pin;
+  int mode;
+  int inverted;
+
+  int state = DIGITAL_READ_PEDAL_UP;
+  uint32_t glitch_buf = 0;
+  unsigned long last_change_time = 0;
+
+  Button() = delete;
+  Button(int pin_, int default_mode_, int inverted_)
+  {
+    pin = pin_;
+    mode = default_mode_;
+    inverted = inverted_;
+
+    default_mode = default_mode_;
+    default_inverted = inverted_;
+  }
+
+  void set_mode(int mode_, int inverted_)
+  {
+    mode = mode_;
+    inverted = inverted_;
+  }
+
+  void reset_to_defaults()
+  {
+    // Release any potenitally help down mouse buttons.
+    switch (mode) {
+      // For left, right, and middle button modes, the mode
+      // number corresponds  to the Mouse library button
+      // constant.
+      case MODE_MOUSE_LEFT:
+      case MODE_MOUSE_RIGHT:
+      case MODE_MOUSE_MIDDLE:
+        Mouse.release(mode);
+        break;
+    }
+    mode = default_mode;
+    inverted = default_inverted;
+  }
+
+  /**
+   * Apply inversion settings to the pedal position
+   */
+  bool should_engage()
+  {
+    return (inverted && (state == DIGITAL_READ_PEDAL_UP)) ||
+           (!inverted && (state == DIGITAL_READ_PEDAL_DOWN));
+  }
+
+  /**
+   * De-Bouncing Filter.
+   */
+  bool debounce(int digital_read, unsigned long now)
+  {
+    // const uint32_t mask = static_cast<uint32_t>(-1) >> (SAMPLE_COUNT);
+    // The bit mask is responsible for ignoring short glitches on the GPIO pins.
+    // A minimum number of sequential samples must be all high or all low to
+    // change state. The glitch duration is determined by POLL_PERIOD_US *
+    // GLITCH_SAMPLE_CNT.
+    const uint32_t mask = static_cast<uint32_t>(-1) >> (32 - GLITCH_SAMPLE_CNT);
+
+    glitch_buf = mask & ((glitch_buf << 1) | digital_read);
+
+    // The debounce reset is used to acheive longer debounce times on the pedal
+    // reset.
+    if ((now - last_change_time) < DEBOUNCE_RESET) {
+      return false;
+    }
+
+    last_change_time = now;
+
+    if (state == 1 && glitch_buf == 0) {
+      state = 0;
+      return true;
+    } else if (state == 0 && glitch_buf == mask) {
+      state = 1;
+      return true;
+    }
+
+    return false;
+  }
+};
+
+#endif // FOOT_MOUSE_BUTTON_H

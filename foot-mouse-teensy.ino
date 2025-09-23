@@ -42,183 +42,8 @@ idea for scrolling mode:
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define GLITCH_SAMPLE_CNT 5
-#define POLL_PERIOD_US    20
-#define DEBOUNCE_RESET    20000 // microseconds
-#define MAX_STR_LENGTH    256
-
-// NOTE: Opening the serial monitor on Arduino IDE will lock
-// serial access two external scripts.
-#define DEBUG 1
-
-/*
-UNIT DESCRIPTIONS:
-Model number 1 is the pro-micro board (with 1 foot pedal &
-mode switch). It's not supported by this sketch.
-Model number 2 is the teensy unit with 3 pedals.
-
-WARNING: the os will be hosed all of the button
-pins are properly pulled high. If this happens:
-1. Unplug microcontroller.
-2. Put computer to sleep and wake up to reset modifier keypress.
-3. Recompile fixed code and make sure Paul's loader tool is running.
-4. Hold reset button while plugging microcontroller back in to pc.
-*/
-
-#define NUM_OF_PEDALS 3
-#define PIN_PEDAL_0   4
-#define PIN_PEDAL_1   5
-#define PIN_PEDAL_2   6
-#define PIN_PEDAL_3   7 // need to implement
-
-// Yahmaho foot pedal behaviors.
-#define DIGITAL_READ_PEDAL_DOWN 1
-#define DIGITAL_READ_PEDAL_UP   0
-
-// Tempoary keyboard shortcut programming. The special key is used to send
-// keystrokes to the computer (i.e. F24) that can't be replicated on my keyboard
-// when I am trying to set keyboard shortcuts on devices (and in programs) that
-// require the key to be pressed and captured. For example, programming Logitech
-// mouses.
-// #define SPECIAL_KEY KEY_F23
-// #define PROGRAM_SPECIAL
-
-// These constants are from Paul's mouse library 'Mouse.h'.
-// I use these constants as my mode enum to save memory and
-// for code brevity.
-static_assert(MOUSE_LEFT == 1, "Mouse constants have changed.");
-static_assert(MOUSE_RIGHT == 2, "Mouse constants have changed.");
-static_assert(MOUSE_MIDDLE == 4, "Mouse constants have changed.");
-
-/**
- * PEDAL MODE DESCRIPTIONS:
- * MODE_MOUSE_LEFT: left mouse button
- * MODE_MOUSE_RIGHT: right mouse button
- * MODE_MOUSE_MIDDLE: middle mouse button
- * MODE_MOUSE_DOUBLE: double left-click
- * MODE_CTRL_CLICK: control left-click
- * MODE_SCROLL_BAR: Locks mouse to to the horizontal scroll bar area. The Teensy
- * sends one of the rarely function keys (F18) and a program running on the
- * desktop captures this keypress to control the cursor. MODE_SCROLL_ANYWHERE:
- * Triggers scroll wheel up/down events depending on the vertical position of
- * the cursor. The Teensy sends one of the rarely function keys (F20) and a
- * program running on the desktop captures this keypress to control the cursor.
- */
-enum PedalMode
-{
-  MODE_MOUSE_LEFT = MOUSE_LEFT,
-  MODE_MOUSE_RIGHT = MOUSE_RIGHT,
-  MODE_MOUSE_MIDDLE = MOUSE_MIDDLE,
-  MODE_MOUSE_DOUBLE = 8,
-  MODE_CTRL_CLICK = 15,
-  MODE_SHIFT_CLICK = 18,
-  MODE_SHIFT_MIDDLE_CLICK = 19,
-  MODE_SCROLL_BAR = 32,
-  MODE_SCROLL_ANYWHERE = 64,
-  MODE_FUNCTION = 65
-};
-
-enum MessageCode
-{
-  MSG_IDENTIFY = 4,
-  MSG_SET_BUTTONS = 5,
-  MSG_RESET_BUTTONS_TO_DEFAULT = 6,
-  MSG_ECHO = 7,
-  MSG_SEND_ASCII_KEYS = 8,
-  MSG_SET_VAULT = 10,
-  MSG_KEYBOARD_TYPE_VAULT = 11
-};
-
-class Button
-{
-public:
-  int default_mode;
-  int default_inverted;
-
-  int pin;
-  int mode;
-  int inverted;
-
-  int state = DIGITAL_READ_PEDAL_UP;
-  uint32_t glitch_buf = 0;
-  unsigned long last_change_time = 0;
-
-  Button() = delete;
-  Button(int pin_, int default_mode_, int inverted_)
-  {
-    pin = pin_;
-    mode = default_mode_;
-    inverted = inverted_;
-
-    default_mode = default_mode_;
-    default_inverted = inverted_;
-  }
-
-  void set_mode(int mode_, int inverted_)
-  {
-    mode = mode_;
-    inverted = inverted_;
-  }
-
-  void reset_to_defaults()
-  {
-    // Release any potenitally help down mouse buttons.
-    switch (mode) {
-      // For left, right, and middle button modes, the mode
-      // number corresponds  to the Mouse library button
-      // constant.
-      case MODE_MOUSE_LEFT:
-      case MODE_MOUSE_RIGHT:
-      case MODE_MOUSE_MIDDLE:
-        Mouse.release(mode);
-        break;
-    }
-    mode = default_mode;
-    inverted = default_inverted;
-  }
-
-  /**
-   * Apply inversion settings to the pedal position
-   */
-  bool should_engage()
-  {
-    return (inverted && (state == DIGITAL_READ_PEDAL_UP)) ||
-           (!inverted && (state == DIGITAL_READ_PEDAL_DOWN));
-  }
-
-  /**
-   * De-Bouncing Filter.
-   */
-  bool debounce(int digital_read, unsigned long now)
-  {
-    // const uint32_t mask = static_cast<uint32_t>(-1) >> (SAMPLE_COUNT);
-    // The bit mask is responsible for ignoring short glitches on the GPIO pins.
-    // A minimum number of sequential samples must be all high or all low to
-    // change state. The glitch duration is determined by POLL_PERIOD_US *
-    // GLITCH_SAMPLE_CNT.
-    const uint32_t mask = static_cast<uint32_t>(-1) >> (32 - GLITCH_SAMPLE_CNT);
-
-    glitch_buf = mask & ((glitch_buf << 1) | digital_read);
-
-    // The debounce reset is used to acheive longer debounce times on the pedal
-    // reset.
-    if ((now - last_change_time) < DEBOUNCE_RESET) {
-      return false;
-    }
-
-    last_change_time = now;
-
-    if (state == 1 && glitch_buf == 0) {
-      state = 0;
-      return true;
-    } else if (state == 0 && glitch_buf == mask) {
-      state = 1;
-      return true;
-    }
-
-    return false;
-  }
-};
+#include "button.h"
+#include "constants.h"
 
 ////////////////////////////////////////////////////////////////
 //                      GLOBAL VARIABLES                      //
@@ -226,15 +51,35 @@ public:
 
 // clang-format off
 // Buttons and their defaults.
+
+#define FOOT_MOUSE_3_BUTTONS
+
+#if defined(FOOT_MOUSE_2_BUTTONS)
 Button button_array[] = { 
-  Button(PIN_PEDAL_0, MODE_MOUSE_LEFT, true),
-  Button(PIN_PEDAL_1, MODE_MOUSE_MIDDLE, false),
-#ifndef PROGRAM_SPECIAL
-  Button(PIN_PEDAL_2, MODE_MOUSE_RIGHT, false)
-#else
-  Button(PIN_PEDAL_2, MODE_FUNCTION, false)
-#endif
+  Button(4, MODE_MOUSE_LEFT, true),
+  Button(5, MODE_MOUSE_MIDDLE, false),
 };
+
+#elif defined(FOOT_MOUSE_3_BUTTONS)
+Button button_array[] = { 
+  Button(4, MODE_MOUSE_LEFT, true),
+  Button(5, MODE_MOUSE_RIGHT, false),
+  #ifdef PROGRAM_SPECIAL
+  Button(6, MODE_FUNCTION, false)
+  #else
+  Button(6, MODE_CTRL_CLICK, false)   
+  #endif
+};
+
+#elif defined(FOOT_MOUSE_4_BUTTONS)
+Button button_array[] = { 
+  Button(4, MODE_MOUSE_LEFT, true),
+  Button(5, MODE_MOUSE_MIDDLE, false),
+  Button(6, MODE_MOUSE_RIGHT, false)
+  // TODO: Need to implement a fourth button
+  // Button(7, MODE_CTRL_CLICK, false)
+};
+#endif
 // clang-format on
 
 constexpr const int k_buffer_size = MAX_STR_LENGTH;
@@ -276,7 +121,7 @@ valid_button_parameters(const int pedal_index,
   }
   // Intentionally not checking if above maximum possible value
   // for ease of development.
-  if (mode <= 0) {
+  if (mode < 0) {
     return false;
   }
   if (inversion < 0 || inversion > 1) {
@@ -399,7 +244,7 @@ handle_message()
     // Return an identifier code to confirm this is the board I
     // want to send serial commands to.
     case MSG_IDENTIFY:
-      Serial.print("footmouse\n");
+      Serial.print(DEVICE_NAME);
       break;
 
     // Reset all buttons to defaults.
@@ -427,8 +272,8 @@ handle_message()
     // Echo back the message payload over serial.
     // Used for testing.
     case MSG_ECHO:
+      // Return the sent string.
       Serial.println((const char*)data);
-      // Serial.println("echo test");
       break;
 
     // Change the mode of a pedal.
@@ -448,19 +293,19 @@ void
 send_input(int mode, bool engage)
 {
   switch (mode) {
-    // For left, right, and middle button modes, the mode enum
-    // corresponds to the Mouse Library button constant value.
-    case MODE_MOUSE_RIGHT:
-      if (engage) {
-        Mouse.click(MOUSE_RIGHT);
-      }
-      break;
     case MODE_MOUSE_LEFT:
     case MODE_MOUSE_MIDDLE:
       if (engage) {
         Mouse.press(mode);
       } else {
         Mouse.release(mode);
+      }
+      break;
+    // For left, right, and middle button modes, the mode enum
+    // corresponds to the Mouse Library button constant value.
+    case MODE_MOUSE_RIGHT:
+      if (engage) {
+        Mouse.click(MOUSE_RIGHT);
       }
       break;
     case MODE_MOUSE_DOUBLE:
@@ -471,9 +316,10 @@ send_input(int mode, bool engage)
       if (engage) {
         Keyboard.press(MODIFIERKEY_CTRL);
         delay(20);
-        Mouse.click(MOUSE_LEFT);
-        delay(20);
+        Mouse.press(MOUSE_LEFT);
+      } else {
         Keyboard.release(MODIFIERKEY_CTRL);
+        Mouse.release(MOUSE_LEFT);
       }
       break;
     case MODE_SHIFT_CLICK:
@@ -523,6 +369,16 @@ send_input(int mode, bool engage)
       }
       break;
 #endif
+    case MODE_ORBIT:
+      if (engage) {
+        Keyboard.press(MODIFIERKEY_SHIFT);
+        delay(20);
+        Mouse.press(MOUSE_MIDDLE);
+      } else {
+        Keyboard.release(MODIFIERKEY_SHIFT);
+        Mouse.release(MOUSE_MIDDLE);
+      }
+      break;
     default:
       break;
   }
