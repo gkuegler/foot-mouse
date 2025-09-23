@@ -3,23 +3,25 @@ Python API for interacting with the footmouse using the serial port.
 """
 import functools
 import inspect
+from enum import IntEnum
 
 import serial
 import serial.tools.list_ports
 
 TEENSY_SERIAL_MSG_BUFFER_SIZE = 256
 
-modes = {
-    "left": 1,
-    "middle": 4,
-    "right": 2,
-    "double": 8,
-    "control click": 15,
-    "shift click": 18,
-    "shift middle click": 19,
-    "alternate": 32,
-    "anywhere": 64,
-}
+
+class modes(IntEnum):
+    none = 0
+    left = 1
+    middle = 4
+    right = 2
+    double = 8
+    control_click = 15
+    alternate = 32
+    anywhere = 64
+    orbit = 67
+
 
 # Command codes.
 MSG_IDENTIFY = 4
@@ -164,6 +166,6 @@ if __name__ == "__main__":
     print("Available serial ports:")
     print(serial.tools.list_ports.main())
     print("-----------------------")
-    print(change_mode(2, modes["shift middle click"], 0))
+    print(change_mode(2, modes.orbit, 0))
     # echo_test()
     # reset_modes_to_default()

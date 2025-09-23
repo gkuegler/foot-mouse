@@ -38,6 +38,8 @@ idea for scrolling mode:
     to release the middle click
 */
 
+#include <array>
+
 #include <EEPROM.h>
 #include <Keyboard.h>
 #include <Mouse.h>
@@ -45,39 +47,24 @@ idea for scrolling mode:
 #include "button.h"
 #include "constants.h"
 
+// clang-format off
 ////////////////////////////////////////////////////////////////
-//                      GLOBAL VARIABLES                      //
+//                      BOARD SELECTION                       //
 ////////////////////////////////////////////////////////////////
 
-// clang-format off
-// Buttons and their defaults.
+// Select the board and their Buttons and their defaults.
 
 #define FOOT_MOUSE_3_BUTTONS
 
-#if defined(FOOT_MOUSE_2_BUTTONS)
-Button button_array[] = { 
-  Button(4, MODE_MOUSE_LEFT, true),
-  Button(5, MODE_MOUSE_MIDDLE, false),
-};
-
-#elif defined(FOOT_MOUSE_3_BUTTONS)
-Button button_array[] = { 
-  Button(4, MODE_MOUSE_LEFT, true),
-  Button(5, MODE_MOUSE_RIGHT, false),
+#if defined(FOOT_MOUSE_3_BUTTONS)
+std::array<Button, 3> buttons{ 
+  Button(4, MODE_MOUSE_LEFT, INVERTED),
+  Button(5, MODE_MOUSE_MIDDLE, NORMAL),
   #ifdef PROGRAM_SPECIAL
-  Button(6, MODE_FUNCTION, false)
+  Button(6, MODE_FUNCTION, NORMAL)
   #else
-  Button(6, MODE_CTRL_CLICK, false)   
+  Button(6, MODE_MOUSE_RIGHT, NORMAL)   
   #endif
-};
-
-#elif defined(FOOT_MOUSE_4_BUTTONS)
-Button button_array[] = { 
-  Button(4, MODE_MOUSE_LEFT, true),
-  Button(5, MODE_MOUSE_MIDDLE, false),
-  Button(6, MODE_MOUSE_RIGHT, false)
-  // TODO: Need to implement a fourth button
-  // Button(7, MODE_CTRL_CLICK, false)
 };
 #endif
 // clang-format on
@@ -116,7 +103,7 @@ valid_button_parameters(const int pedal_index,
                         const int mode,
                         const int inversion)
 {
-  if (pedal_index < 0 || pedal_index >= NUM_OF_PEDALS) {
+  if (pedal_index < 0 || pedal_index >= static_cast<int>(buttons.size())) {
     return false;
   }
   // Intentionally not checking if above maximum possible value
@@ -249,8 +236,8 @@ handle_message()
 
     // Reset all buttons to defaults.
     case MSG_RESET_BUTTONS_TO_DEFAULT:
-      for (int i = 0; i < NUM_OF_PEDALS; i++) {
-        button_array[i].reset_to_defaults();
+      for (auto& b : buttons) {
+        b.reset_to_defaults();
       }
       break;
 
@@ -283,7 +270,7 @@ handle_message()
       const auto inversion = static_cast<int>(data[2]);
 
       if (valid_button_parameters(pedal_index, mode, inversion)) {
-        button_array[pedal_index].set_mode(mode, inversion);
+        buttons[pedal_index].set_mode(mode, inversion);
       }
       break;
   }
@@ -360,15 +347,6 @@ send_input(int mode, bool engage)
         Keyboard.release(KEY_F20);
       }
       break;
-#ifdef PROGRAM_SPECIAL
-    case MODE_FUNCTION:
-      if (engage) {
-        Keyboard.press(SPECIAL_KEY);
-      } else {
-        Keyboard.release(SPECIAL_KEY);
-      }
-      break;
-#endif
     case MODE_ORBIT:
       if (engage) {
         Keyboard.press(MODIFIERKEY_SHIFT);
@@ -379,6 +357,15 @@ send_input(int mode, bool engage)
         Mouse.release(MOUSE_MIDDLE);
       }
       break;
+#ifdef PROGRAM_SPECIAL
+    case MODE_FUNCTION:
+      if (engage) {
+        Keyboard.press(SPECIAL_KEY);
+      } else {
+        Keyboard.release(SPECIAL_KEY);
+      }
+      break;
+#endif
     default:
       break;
   }
@@ -390,14 +377,17 @@ setup()
   Serial.begin(9600);
   // Serial.write("Serial begin.");
 
-  Mouse.begin();    // actually an empty function
-  Keyboard.begin(); // actually an empty function
+  // Note both Mouse.begin() and Keyboard.begin() are empty methods, but it's
+  // important to call them in case the implementation changes. '.begin()' is
+  // arduino standard.
+  Mouse.begin();
+  Keyboard.begin();
 
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
-  pinMode(PIN_PEDAL_0, INPUT);
-  pinMode(PIN_PEDAL_1, INPUT);
-  pinMode(PIN_PEDAL_2, INPUT);
+  for (const auto& btn : buttons) {
+    pinMode(btn.pin, INPUT);
+  }
 
   // For EEPROM testing.
   // set_vault("EEPROM test value");
@@ -438,8 +428,8 @@ loop()
     previous = now;
 
     // Check each button.
-    for (int i = 0; i < NUM_OF_PEDALS; i++) {
-      auto& b = button_array[i];
+    for (auto& b : buttons) {
+      // auto& b = buttons[i];
       if (b.debounce(digitalRead(b.pin), now)) {
         send_input(b.mode, b.should_engage());
       }

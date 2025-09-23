@@ -6,26 +6,25 @@
 class Button
 {
 public:
-  int default_mode;
-  int default_inverted;
-
   int pin;
   int mode;
   int inverted;
+
+  const int default_mode;
+  const int default_inverted;
 
   int state = DIGITAL_READ_PEDAL_UP;
   uint32_t glitch_buf = 0;
   unsigned long last_change_time = 0;
 
   Button() = delete;
-  Button(int pin_, int default_mode_, int inverted_)
+  Button(int pin, int mode, int inverted)
+    : pin(pin)
+    , mode(mode)
+    , inverted(inverted)
+    , default_mode(mode)
+    , default_inverted(inverted)
   {
-    pin = pin_;
-    mode = default_mode_;
-    inverted = inverted_;
-
-    default_mode = default_mode_;
-    default_inverted = inverted_;
   }
 
   void set_mode(int mode_, int inverted_)

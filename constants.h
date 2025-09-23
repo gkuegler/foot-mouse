@@ -29,15 +29,12 @@ pins are properly pulled high. If this happens:
 4. Hold reset button while plugging microcontroller back in to pc.
 */
 
-#define NUM_OF_PEDALS 3
-#define PIN_PEDAL_0   4
-#define PIN_PEDAL_1   5
-#define PIN_PEDAL_2   6
-#define PIN_PEDAL_3   7 // need to implement
-
 // Yahmaho foot pedal behaviors.
 #define DIGITAL_READ_PEDAL_DOWN 1
 #define DIGITAL_READ_PEDAL_UP   0
+
+#define NORMAL   false // press foot down to engage action
+#define INVERTED true  // lift foot up to engage engage action
 
 // Tempoary keyboard shortcut programming. The special key is used to send
 // keystrokes to the computer (i.e. F24) that can't be replicated on my keyboard
