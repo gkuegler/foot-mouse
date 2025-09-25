@@ -30,8 +30,9 @@ pins are properly pulled high. If this happens:
 */
 
 // Yahmaho foot pedal behaviors.
-#define DIGITAL_READ_PEDAL_DOWN 1
-#define DIGITAL_READ_PEDAL_UP   0
+#define DIGITAL_READ_DISCONNECTED_PEDAL 1
+#define DIGITAL_READ_PEDAL_DOWN         1
+#define DIGITAL_READ_PEDAL_UP           0
 
 #define NORMAL   false // press foot down to engage action
 #define INVERTED true  // lift foot up to engage engage action

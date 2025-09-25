@@ -9,6 +9,8 @@ public:
   int pin;
   int mode;
   int inverted;
+  bool enabled = true;
+  // unsigned long timout_ms = 3 * 60 * 1000;
 
   const int default_mode;
   const int default_inverted;
@@ -61,15 +63,27 @@ public:
 
   /**
    * De-Bouncing Filter.
+   * Return true if an action should be triggered.
    */
   bool debounce(int digital_read, unsigned long now)
   {
-    // const uint32_t mask = static_cast<uint32_t>(-1) >> (SAMPLE_COUNT);
+    if (!enabled) {
+      return false;
+    }
+
+    // Can't implement a timeout feature without edge detection rather than
+    // state detection. if ((now - last_change_time) > timout_ms) {
+    //   // TODO: this will break button behavior if I use edge debouncing
+    //   // detection.
+    //   state = !state;
+    // }
+
     // The bit mask is responsible for ignoring short glitches on the GPIO pins.
     // A minimum number of sequential samples must be all high or all low to
     // change state. The glitch duration is determined by POLL_PERIOD_US *
     // GLITCH_SAMPLE_CNT.
-    const uint32_t mask = static_cast<uint32_t>(-1) >> (32 - GLITCH_SAMPLE_CNT);
+    const uint32_t mask =
+      static_cast<uint32_t>(-1) >> ((sizeof(uint32_t) * 8) - GLITCH_SAMPLE_CNT);
 
     glitch_buf = mask & ((glitch_buf << 1) | digital_read);
 
@@ -79,13 +93,13 @@ public:
       return false;
     }
 
-    last_change_time = now;
-
     if (state == 1 && glitch_buf == 0) {
       state = 0;
+      last_change_time = now;
       return true;
     } else if (state == 0 && glitch_buf == mask) {
       state = 1;
+      last_change_time = now;
       return true;
     }
 

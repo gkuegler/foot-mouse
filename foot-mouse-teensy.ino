@@ -47,6 +47,15 @@ idea for scrolling mode:
 #include "button.h"
 #include "constants.h"
 
+// TODO: Provide means for testing the pins at startup to determine which pedals
+// are active. The Yamaha pedals are normally closed so I should detect a high
+// level at the pin (at boot) if a pedal is not connected. Provid a map to
+// determine what config the pedals are in depending on which are connect.
+// Example:
+// 1,2,3 -> A,B,C
+// 1,3 -> D,E
+// 1,2 -> C,F
+
 // clang-format off
 ////////////////////////////////////////////////////////////////
 //                      BOARD SELECTION                       //
@@ -385,8 +394,14 @@ setup()
 
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
-  for (const auto& btn : buttons) {
+  for (auto& btn : buttons) {
     pinMode(btn.pin, INPUT);
+
+    // Disable a button if no pedal is plugged into the jack.
+    // Alternatively, hold a pedal down on boot to disable that pedal.
+    if (digitalRead(btn.pin) == DIGITAL_READ_DISCONNECTED_PEDAL) {
+      btn.enabled = false;
+    }
   }
 
   // For EEPROM testing.
@@ -428,10 +443,9 @@ loop()
     previous = now;
 
     // Check each button.
-    for (auto& b : buttons) {
-      // auto& b = buttons[i];
-      if (b.debounce(digitalRead(b.pin), now)) {
-        send_input(b.mode, b.should_engage());
+    for (auto& btn : buttons) {
+      if (btn.debounce(digitalRead(btn.pin), now)) {
+        send_input(btn.mode, btn.should_engage());
       }
     }
   }
