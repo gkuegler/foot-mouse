@@ -158,14 +158,19 @@ def echo_test():
         print("no result from echo test")
 
 
-# Run a test enumerating all serial ports.
-if __name__ == "__main__":
-    # Note that you can't send serial messages
-    # when the serial monitor is open in the Arduino IDE.
-    # print out list of available serial ports
+def print_available_serial_ports():
     print("Available serial ports:")
     print(serial.tools.list_ports.main())
-    print("-----------------------")
-    print(change_mode(2, modes.orbit, 0))
+    print("----------------------------")
+
+
+if __name__ == "__main__":
+    # Note that you can't send serial messages
+    # when the serial monitor is open in the Arduino IDE!
+
+    print_available_serial_ports()
+
     # echo_test()
     # reset_modes_to_default()
+
+    change_mode(2, modes.orbit, 0)
