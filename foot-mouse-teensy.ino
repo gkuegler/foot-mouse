@@ -63,21 +63,31 @@ idea for scrolling mode:
 
 // Select the board and their Buttons and their defaults.
 
+/*
+UNIT DESCRIPTIONS:
+Model number 1 is the pro-micro board (with 1 foot pedal &
+mode switch). It's not supported by this sketch.
+Model number 2 is the teensy unit with 3 pedals.
+*/
 #define FOOT_MOUSE_3_BUTTONS
 
 #if defined(FOOT_MOUSE_3_BUTTONS)
-std::array<Button, 3> buttons{ 
-  Button(4, MODE_MOUSE_LEFT, INVERTED),
-  Button(5, MODE_MOUSE_MIDDLE, NORMAL),
-  #ifdef PROGRAM_SPECIAL
-  Button(6, MODE_FUNCTION, NORMAL)
-  #else
-  Button(6, MODE_MOUSE_RIGHT, NORMAL)   
-  #endif
+std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
+                               Button(5, MODE_MOUSE_MIDDLE, NORMAL),
+                               Button(6, MODE_MOUSE_RIGHT, NORMAL) };
+#elif defined(FOOT_MOUSE_TRAVEL_6BTN)
+std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
+                               Button(5, MODE_MOUSE_MIDDLE, NORMAL),
+                               Button(6, MODE_MOUSE_RIGHT, NORMAL)
+
 };
 #endif
-// clang-format on
 
+////////////////////////////////////////////////////////////////
+//                     GLOBAL VARIABLES                       //
+////////////////////////////////////////////////////////////////
+
+// TODO: change to standard array
 constexpr const int k_buffer_size = MAX_STR_LENGTH;
 byte g_input_buffer[k_buffer_size];
 
@@ -240,11 +250,13 @@ handle_message()
     // Return an identifier code to confirm this is the board I
     // want to send serial commands to.
     case MSG_IDENTIFY:
-      Serial.print(DEVICE_NAME);
+      Serial.print(DEVICE_ID_RESPONSE);
       break;
 
     // Reset all buttons to defaults.
     case MSG_RESET_BUTTONS_TO_DEFAULT:
+      // Lets go of all keys currently pressed. See Keyboard.press().
+      Keyboard.releaseAll();
       for (auto& b : buttons) {
         b.reset_to_defaults();
       }
@@ -274,6 +286,8 @@ handle_message()
 
     // Change the mode of a pedal.
     case MSG_SET_BUTTONS:
+      // TODO: use message structures
+      // const SetButtonMsg* msg = &data;
       const auto pedal_index = static_cast<int>(data[0]);
       const auto mode = static_cast<int>(data[1]);
       const auto inversion = static_cast<int>(data[2]);

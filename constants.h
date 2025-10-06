@@ -13,21 +13,7 @@
 // serial access two external scripts.
 #define DEBUG 1
 
-#define DEVICE_NAME "footmouse\n"
-
-/*
-UNIT DESCRIPTIONS:
-Model number 1 is the pro-micro board (with 1 foot pedal &
-mode switch). It's not supported by this sketch.
-Model number 2 is the teensy unit with 3 pedals.
-
-WARNING: the os will be hosed all of the button
-pins are properly pulled high. If this happens:
-1. Unplug microcontroller.
-2. Put computer to sleep and wake up to reset modifier keypress.
-3. Recompile fixed code and make sure Paul's loader tool is running.
-4. Hold reset button while plugging microcontroller back in to pc.
-*/
+#define DEVICE_ID_RESPONSE "footmouse\n"
 
 // Yahmaho foot pedal behaviors.
 #define DIGITAL_READ_DISCONNECTED_PEDAL 1
