@@ -47,6 +47,10 @@ idea for scrolling mode:
 #include "button.h"
 #include "constants.h"
 
+#ifdef FOOTMOUSE_TESTING
+#include "scan-codes.h"
+#endif
+
 // TODO: Provide means for testing the pins at startup to determine which pedals
 // are active. The Yamaha pedals are normally closed so I should detect a high
 // level at the pin (at boot) if a pedal is not connected. Provid a map to
@@ -56,7 +60,6 @@ idea for scrolling mode:
 // 1,3 -> D,E
 // 1,2 -> C,F
 
-// clang-format off
 ////////////////////////////////////////////////////////////////
 //                      BOARD SELECTION                       //
 ////////////////////////////////////////////////////////////////
@@ -75,7 +78,10 @@ Model number 2 is the teensy unit with 3 pedals.
 std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(5, MODE_MOUSE_MIDDLE, NORMAL),
                                Button(6, MODE_MOUSE_RIGHT, NORMAL) };
-#elif defined(FOOT_MOUSE_TRAVEL_6BTN)
+/*
+ * Dual stereo jacks
+ */
+#elif defined(FOOT_MOUSE_TRAVEL_4BTN)
 std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(5, MODE_MOUSE_MIDDLE, NORMAL),
                                Button(6, MODE_MOUSE_RIGHT, NORMAL)
@@ -183,6 +189,20 @@ type_string(const char* text)
   }
 }
 
+void
+fire_macro(const uint16_t* keycodes, const size_t count)
+{
+  for (size_t i = 0; i < count; i++) {
+    Keyboard.press(keycodes[i]);
+  }
+
+  delay(1);
+
+  for (size_t i = 0; i < count; i++) {
+    Keyboard.release(keycodes[i]);
+  }
+}
+
 /**
  * Receiving serial input is used to change pedal mode
  * through the use of scripts on the host pc.
@@ -285,7 +305,7 @@ handle_message()
       break;
 
     // Change the mode of a pedal.
-    case MSG_SET_BUTTONS:
+    case MSG_SET_BUTTONS: {
       // TODO: use message structures
       // const SetButtonMsg* msg = &data;
       const auto pedal_index = static_cast<int>(data[0]);
@@ -296,13 +316,38 @@ handle_message()
         buttons[pedal_index].set_mode(mode, inversion);
       }
       break;
+    }
+    case MSG_SET_BUTTONS_EX: {
+      // Deciding on little endian.
+      const byte pedal_index = data[0];
+      // TODO: make this truth come from my message receive function
+      const byte cnt = data[1];
+      auto keycodes = reinterpret_cast<const uint16_t*>(&data[2]);
+
+      // auto msg = reinterpret_cast<SetButtonMsgEx*>(data);
+
+      auto& btn = buttons[pedal_index];
+
+      if (cnt > btn.keycodes.size()) {
+        Serial.println("Data is too big.");
+        break;
+      }
+
+      memcpy(btn.keycodes.data(), keycodes, cnt * sizeof(uint16_t));
+      btn.nKeycodes = cnt;
+      btn.mode = MODE_KEYCOMBO;
+      btn.inverted = 0;
+      break;
+    }
   }
 }
 
 void
-send_input(int mode, bool engage)
+send_input(int mode, bool engage, Button& btn)
 {
   switch (mode) {
+    // For left, right, and middle button modes, the mode enum
+    // corresponds to the Mouse Library button constant value.
     case MODE_MOUSE_LEFT:
     case MODE_MOUSE_MIDDLE:
       if (engage) {
@@ -311,17 +356,18 @@ send_input(int mode, bool engage)
         Mouse.release(mode);
       }
       break;
-    // For left, right, and middle button modes, the mode enum
-    // corresponds to the Mouse Library button constant value.
+
     case MODE_MOUSE_RIGHT:
       if (engage) {
         Mouse.click(MOUSE_RIGHT);
       }
       break;
+
     case MODE_MOUSE_DOUBLE:
       Mouse.click();
       Mouse.click();
       break;
+
     case MODE_CTRL_CLICK:
       if (engage) {
         Keyboard.press(MODIFIERKEY_CTRL);
@@ -332,6 +378,7 @@ send_input(int mode, bool engage)
         Mouse.release(MOUSE_LEFT);
       }
       break;
+
     case MODE_SHIFT_CLICK:
       if (engage) {
         Keyboard.press(MODIFIERKEY_SHIFT);
@@ -342,6 +389,7 @@ send_input(int mode, bool engage)
         Mouse.release(MOUSE_LEFT);
       }
       break;
+
     case MODE_SHIFT_MIDDLE_CLICK:
       if (engage) {
         Keyboard.press(MODIFIERKEY_SHIFT);
@@ -352,6 +400,7 @@ send_input(int mode, bool engage)
         Mouse.release(MOUSE_MIDDLE);
       }
       break;
+
     // This hotkey locks the mouse to the left or right side of the
     // display where a scrollbar or a scroll map is.
     // Is implemented in my head tracking to mouse program
@@ -360,9 +409,10 @@ send_input(int mode, bool engage)
       Keyboard.press(KEY_F18);
       Keyboard.release(KEY_F18);
       break;
-      // Autohotkey script used to trigger scrollwheel commans.
-      // Scroll up/down messages are sent at a speed relative to
-      // how far near the top or bottom my mouse pointer is.A
+
+    // Autohotkey script used to trigger scrollwheel commans.
+    // Scroll up/down messages are sent at a speed relative to
+    // how far near the top or bottom my mouse pointer is.A
     case MODE_SCROLL_ANYWHERE:
       if (engage) {
         Keyboard.press(KEY_F20);
@@ -370,6 +420,7 @@ send_input(int mode, bool engage)
         Keyboard.release(KEY_F20);
       }
       break;
+
     case MODE_ORBIT:
       if (engage) {
         Keyboard.press(MODIFIERKEY_SHIFT);
@@ -380,15 +431,13 @@ send_input(int mode, bool engage)
         Mouse.release(MOUSE_MIDDLE);
       }
       break;
-#ifdef PROGRAM_SPECIAL
-    case MODE_FUNCTION:
+
+    // Fire a preset key combo.
+    case MODE_KEYCOMBO:
       if (engage) {
-        Keyboard.press(SPECIAL_KEY);
-      } else {
-        Keyboard.release(SPECIAL_KEY);
+        fire_macro(btn.keycodes.data(), btn.nKeycodes);
       }
       break;
-#endif
     default:
       break;
   }
@@ -398,7 +447,6 @@ void
 setup()
 {
   Serial.begin(9600);
-  // Serial.write("Serial begin.");
 
   // Note both Mouse.begin() and Keyboard.begin() are empty methods, but it's
   // important to call them in case the implementation changes. '.begin()' is
@@ -459,7 +507,7 @@ loop()
     // Check each button.
     for (auto& btn : buttons) {
       if (btn.debounce(digitalRead(btn.pin), now)) {
-        send_input(btn.mode, btn.should_engage());
+        send_input(btn.mode, btn.should_engage(), btn);
       }
     }
   }

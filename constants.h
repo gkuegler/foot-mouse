@@ -65,18 +65,33 @@ enum PedalMode
   MODE_SCROLL_BAR = 32,
   MODE_SCROLL_ANYWHERE = 64,
   MODE_FUNCTION = 65,
-  MODE_ORBIT = 67
+  MODE_ORBIT = 67,
+  MODE_KEYCOMBO = 68
 };
 
 enum MessageCode
 {
   MSG_IDENTIFY = 4,
   MSG_SET_BUTTONS = 5,
+  MSG_SET_BUTTONS_EX = 51,
   MSG_RESET_BUTTONS_TO_DEFAULT = 6,
   MSG_ECHO = 7,
   MSG_SEND_ASCII_KEYS = 8,
   MSG_SET_VAULT = 10,
   MSG_KEYBOARD_TYPE_VAULT = 11
+};
+
+struct __attribute__((packed)) SetButtonMsg
+{
+  byte pedal_index;
+  byte mode;
+  byte inversion;
+};
+struct __attribute__((packed)) SetButtonMsgEx
+{
+  byte pedal_index;
+  byte size;
+  // char[256] data;
 };
 
 #endif // FOOT_MOUSE_CONSTANTS_H

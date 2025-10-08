@@ -10,6 +10,9 @@ public:
   int mode;
   int inverted;
   bool enabled = true;
+
+  size_t nKeycodes;
+  std::array<uint16_t, 128> keycodes;
   // unsigned long timout_ms = 3 * 60 * 1000;
 
   const int default_mode;

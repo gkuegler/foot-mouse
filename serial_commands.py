@@ -21,11 +21,13 @@ class modes(IntEnum):
     alternate = 32
     anywhere = 64
     orbit = 67
+    keycombo = 68
 
 
 # Command codes.
 MSG_IDENTIFY = 4
 MSG_SET_BUTTON_FUNCTION = 5
+MSG_SET_BUTTON_FUNCTION_EX = 51
 MSG_RESET_BUTTONS_TO_DEFAULT = 6
 MSG_ECHO = 7
 MSG_TYPE_ASCII_STR = 8
@@ -158,6 +160,23 @@ def echo_test():
         print("no result from echo test")
 
 
+def generate(keycodes: list[int | str]) -> bytes:
+    import struct
+    fmt = '<' + ''.join(['H' for i in keycodes])
+    # Allow the use of 'c' literals in keycodes.
+    keycodes = map(lambda k: ord(k) if isinstance(k, str) else k, keycodes)
+    return struct.pack(fmt, *keycodes)
+
+
+def set_macro(btn: int, keycodes: list[int | str]):
+    keys = generate(keycodes)
+    # decode keycodes into little endian [uint16_t]
+    buf = [MSG_SET_BUTTON_FUNCTION_EX, btn, len(keycodes), *keys]
+    print(buf)
+    if result := send_to_foot_pedal(buf, block_for_response=True):
+        print(f"result: {result}")
+
+
 def print_available_serial_ports():
     print("Available serial ports:")
     print(serial.tools.list_ports.main())
@@ -168,9 +187,14 @@ if __name__ == "__main__":
     # Note that you can't send serial messages
     # when the serial monitor is open in the Arduino IDE!
 
-    print_available_serial_ports()
+    # print_available_serial_ports()
 
     # echo_test()
     # reset_modes_to_default()
 
-    change_mode(2, modes.orbit, 0)
+    # change_mode(2, modes.orbit, 0)
+    import scan_codes
+    KEY_BACKSPACE = 42 | 0xF000
+    MODIFIERKEY_SHIFT = 0x02 | 0xE000
+    MODIFIERKEY_CTRL = 0x01 | 0xE000
+    set_macro(1, [MODIFIERKEY_CTRL, 'v'])
