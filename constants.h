@@ -4,6 +4,8 @@
 #include <Keyboard.h>
 #include <Mouse.h>
 
+#define AUTO_DISABLE_BTN_ON_START
+
 #define GLITCH_SAMPLE_CNT 5
 #define POLL_PERIOD_US    20
 #define DEBOUNCE_RESET    20000 // microseconds

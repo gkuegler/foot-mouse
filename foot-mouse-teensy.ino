@@ -448,11 +448,13 @@ setup()
   for (auto& btn : buttons) {
     pinMode(btn.pin, INPUT);
 
-    // Disable a button if no pedal is plugged into the jack.
-    // Alternatively, hold a pedal down on boot to disable that pedal.
+// Disable a button if no pedal is plugged into the jack.
+// Alternatively, hold a pedal down on boot to disable that pedal.
+#ifdef AUTO_DISABLE_BTN_ON_START
     if (digitalRead(btn.pin) == DIGITAL_READ_DISCONNECTED_PEDAL) {
       btn.enabled = false;
     }
+#endif
   }
 
   // For EEPROM testing.
