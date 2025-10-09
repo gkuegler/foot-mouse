@@ -87,11 +87,13 @@ struct __attribute__((packed)) SetButtonMsg
   byte mode;
   byte inversion;
 };
+
+// Note that Teensy architecture is little-endian.
 struct __attribute__((packed)) SetButtonMsgEx
 {
   byte pedal_index;
   byte size;
-  // char[256] data;
+  uint16_t keycodes[128];
 };
 
 #endif // FOOT_MOUSE_CONSTANTS_H

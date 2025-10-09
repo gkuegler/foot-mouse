@@ -300,19 +300,14 @@ handle_message()
 
     // Change the mode of a pedal.
     case MSG_SET_BUTTONS: {
-      // TODO: use message structures
-      // const SetButtonMsg* msg = &data;
-      const auto pedal_index = static_cast<int>(data[0]);
-      const auto mode = static_cast<int>(data[1]);
-      const auto inversion = static_cast<int>(data[2]);
+      auto mx = reinterpret_cast<const SetButtonMsg*>(data);
 
-      if (valid_button_parameters(pedal_index, mode, inversion)) {
-        buttons[pedal_index].set_mode(mode, inversion);
+      if (valid_button_parameters(mx->pedal_index, mx->mode, mx->inversion)) {
+        buttons[mx->pedal_index].set_mode(mx->mode, mx->inversion);
       }
       break;
     }
     case MSG_SET_BUTTONS_EX: {
-      // Deciding on little endian.
       const byte pedal_index = data[0];
       // TODO: make this truth come from my message receive function
       const byte cnt = data[1];
