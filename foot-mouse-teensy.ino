@@ -47,18 +47,13 @@ idea for scrolling mode:
 #include "button.h"
 #include "constants.h"
 
-#ifdef FOOTMOUSE_TESTING
-#include "scan-codes.h"
-#endif
+#include "test-scan-codes.h"
 
-// TODO: Provide means for testing the pins at startup to determine which pedals
-// are active. The Yamaha pedals are normally closed so I should detect a high
-// level at the pin (at boot) if a pedal is not connected. Provid a map to
-// determine what config the pedals are in depending on which are connect.
-// Example:
-// 1,2,3 -> A,B,C
-// 1,3 -> D,E
-// 1,2 -> C,F
+// FUTURE: Since pedals are detected at startup, I might want to provide a map
+// to determine what preset config the pedals are in depending on which are
+// connected. This allows me to have say:
+// Sheet music page turning mode if 1 & 3 connected.
+// Or some other preset if only 2 & 3 are connected.
 
 ////////////////////////////////////////////////////////////////
 //                      BOARD SELECTION                       //
@@ -84,9 +79,8 @@ std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
 #elif defined(FOOT_MOUSE_TRAVEL_4BTN)
 std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(5, MODE_MOUSE_MIDDLE, NORMAL),
-                               Button(6, MODE_MOUSE_RIGHT, NORMAL)
-
-};
+                               Button(6, MODE_MOUSE_RIGHT, NORMAL),
+                               Button(6, MODE_MOUSE_ORBIT, NORMAL) };
 #endif
 
 ////////////////////////////////////////////////////////////////

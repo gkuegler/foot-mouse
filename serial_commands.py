@@ -4,6 +4,7 @@ Python API for interacting with the footmouse using the serial port.
 import functools
 import inspect
 from enum import IntEnum
+import struct
 
 import serial
 import serial.tools.list_ports
@@ -161,11 +162,11 @@ def echo_test():
 
 
 def generate(keycodes: list[int | str]) -> bytes:
-    import struct
-    fmt = '<' + ''.join(['H' for i in keycodes])
+    # Create a struct packed with little-endian uint16_t's.
+    fmt = '<' + ('H' * len(keycodes))
     # Allow the use of 'c' literals in keycodes.
-    keycodes = map(lambda k: ord(k) if isinstance(k, str) else k, keycodes)
-    return struct.pack(fmt, *keycodes)
+    san_keycodes = map(lambda k: ord(k) if isinstance(k, str) else k, keycodes)
+    return struct.pack(fmt, *san_keycodes)
 
 
 def set_macro(btn: int, keycodes: list[int | str]):
