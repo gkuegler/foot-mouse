@@ -9,7 +9,7 @@
 #define GLITCH_SAMPLE_CNT 5
 #define POLL_PERIOD_US    20
 #define DEBOUNCE_RESET    20000 // microseconds
-#define MAX_STR_LENGTH    256
+#define MAX_PAYLOAD_SIZE  512
 
 // NOTE: Opening the serial monitor on Arduino IDE will lock
 // serial access two external scripts.
@@ -71,31 +71,17 @@ enum PedalMode
   MODE_KEYCOMBO = 68
 };
 
-enum MessageCode
+enum CmdCode
 {
-  MSG_IDENTIFY = 4,
-  MSG_SET_BUTTONS = 5,
-  MSG_SET_BUTTONS_EX = 51,
-  MSG_RESET_BUTTONS_TO_DEFAULT = 6,
-  MSG_ECHO = 7,
-  MSG_SEND_ASCII_KEYS = 8,
-  MSG_SET_VAULT = 10,
-  MSG_KEYBOARD_TYPE_VAULT = 11
-};
-
-struct __attribute__((packed)) SetButtonMsg
-{
-  byte pedal_index;
-  byte mode;
-  byte inversion;
-};
-
-// Note that Teensy architecture is little-endian.
-struct __attribute__((packed)) SetButtonMsgEx
-{
-  byte pedal_index;
-  byte size;
-  uint16_t keycodes[128];
+  CMD_IDENTIFY = 4,
+  CMD_SET_BUTTON_MODE = 5,
+  CMD_SET_KEYCOMBO = 51,
+  CMD_RESET_BUTTONS_TO_DEFAULT = 6,
+  CMD_ECHO = 7,
+  CMD_SEND_ASCII_KEYS = 8,
+  CMD_SET_VAULT = 10,
+  CMD_KEYBOARD_TYPE_VAULT = 11,
+  CMD_RETURN_CRC = 12
 };
 
 #endif // FOOT_MOUSE_CONSTANTS_H

@@ -9,7 +9,13 @@ import struct
 import serial
 import serial.tools.list_ports
 
-TEENSY_SERIAL_MSG_BUFFER_SIZE = 256
+# For future crc verification.
+# import zlib
+
+TEENSY_PAYLOAD_BUFFER_SIZE = 512
+
+TESTING_COM_PORT_NAME = "COM3"
+TESTING = False
 
 
 class modes(IntEnum):
@@ -26,17 +32,18 @@ class modes(IntEnum):
 
 
 # Command codes.
-MSG_IDENTIFY = 4
-MSG_SET_BUTTON_FUNCTION = 5
-MSG_SET_BUTTON_FUNCTION_EX = 51
-MSG_RESET_BUTTONS_TO_DEFAULT = 6
-MSG_ECHO = 7
-MSG_TYPE_ASCII_STR = 8
-MSG_SET_SAVED_ASCII_STR = 10
-MSG_TYPE_SAVED_ASCII_STR = 11
+CMD_IDENTIFY = 4
+CMD_SET_BUTTON_FUNCTION = 5
+CMD_SET_BUTTON_FUNCTION_EX = 51
+CMD_RESET_BUTTONS_TO_DEFAULT = 6
+CMD_ECHO = 7
+CMD_TYPE_ASCII_STR = 8
+CMD_SET_SAVED_ASCII_STR = 10
+CMD_TYPE_SAVED_ASCII_STR = 11
 
-START_MARKER = 16
-STOP_MARKER = 17
+
+def convert_to_zstr_bytes(string: str):
+    return string.encode(encoding="ASCII", errors='strict') + b"\x00"
 
 
 def MemoizeCallNoArgs(function):
@@ -63,48 +70,82 @@ def MemoizeCallNoArgs(function):
     return wrapper
 
 
-def send_serial(port, buf: list[int], block_for_response=False):
-    if len(buf) > TEENSY_SERIAL_MSG_BUFFER_SIZE:
-        raise Exception("serial messages is to long." +
-                        f"Attempted '{len(buf)}' bytes" +
-                        f"expected at max '{TEENSY_SERIAL_MSG_BUFFER_SIZE}'" +
-                        "bytes.")
-
-    constructed_msg = bytes([START_MARKER, *buf, STOP_MARKER])
-    with serial.Serial(port, 9600, write_timeout=1, timeout=2) as s:
-        s.write(constructed_msg)
+def send_serial(port, buf: bytes, block_for_response=False):
+    with serial.Serial(port, 9600, write_timeout=1, timeout=1) as s:
+        s.write(buf)
         s.flush()
+        if TESTING:
+            block_for_response = True
         if block_for_response:
-            return s.readline()
+            from time import sleep
+            sleep(0.25)
+            lines = s.readlines()
+            for l in lines:
+                print(l)
+            return lines
         else:
             return True
 
 
+def send_serial_and_get_lines(port, buf: bytes):
+    result = send_serial(port, buf, block_for_response=True)
+    if isinstance(result, list):
+        return result
+    else:
+        raise Exception()
+
+
+def get_structured_bytes(cmd: int, payload: bytes = b""):
+    SOF = 0xFFFFFFFF
+    length = len(payload)
+    crc = 0xCAFECAFE
+
+    # Some commands don't have associated payload.
+    if length > TEENSY_PAYLOAD_BUFFER_SIZE:
+        raise Exception("serial messages is to long." +
+                        f"Attempted '{len(payload)}' bytes" +
+                        f"expected at max '{TEENSY_PAYLOAD_BUFFER_SIZE}'" +
+                        "bytes.")
+
+    msg_bytes = struct.pack("<IIII", SOF, length, crc, cmd) + payload
+    print(f"msg_bytes: {msg_bytes}")
+    return msg_bytes
+
+
 @MemoizeCallNoArgs
-def find_foot_mouse_com_port() -> str | None:
+def find_footmouse_com_port_name() -> str | None:
     """
     Find the COM port of my footmouse device.
     """
     # Iterate through list of available COM port
     # names, e.g. ["COM4", "COM6", "COM9"].
+    if TESTING:
+        return TESTING_COM_PORT_NAME
+
     for port in serial.tools.list_ports.comports():
         try:
-            if b"footmouse\n" == send_serial(port.name, [MSG_IDENTIFY],
-                                             block_for_response=True):
+            lines = send_serial_and_get_lines(
+                port.name, get_structured_bytes(CMD_IDENTIFY))
+            # There could be several log messages over serial that get in the way.
+            if b"footmouse\n" in lines:
                 return port.name
             else:
-                print(f"'{port.name}' not the COM port I'm looking for.")
+                # print(f"'{port.name}' not the COM port I'm looking for.")
+                continue
         except serial.SerialException as ex:
             print(f"{port.name} not available.")
             continue
+    print("No Footmouse port found.")
     return None
 
 
-def send_to_foot_pedal(buf: list[int], block_for_response=False):
+def send_cmd_to_foot_pedal(cmd: int,
+                           payload: bytes = b"",
+                           block_for_response=False):
     try:
-        if port_name := find_foot_mouse_com_port():
+        if port_name := find_footmouse_com_port_name():
             return send_serial(port_name,
-                               buf,
+                               get_structured_bytes(cmd, payload),
                                block_for_response=block_for_response)
         else:
             return False
@@ -113,24 +154,29 @@ def send_to_foot_pedal(buf: list[int], block_for_response=False):
         return False
 
 
-# --- EXPORTED COMMANDS --
+def echo_test():
+    msg = "Hello World!"
+    if result := send_cmd_to_foot_pedal(CMD_ECHO,
+                                        convert_to_zstr_bytes(msg),
+                                        block_for_response=True):
+        print(f"echo test result: {result}")
+    else:
+        print("no result from echo test")
 
 
 def reset_modes_to_default():
-    return send_to_foot_pedal([MSG_RESET_BUTTONS_TO_DEFAULT, 0, 0, 0])
+    return send_cmd_to_foot_pedal(CMD_RESET_BUTTONS_TO_DEFAULT)
 
 
 def change_mode(pedal: int, mode: int, inverted: int):
-    return send_to_foot_pedal([MSG_SET_BUTTON_FUNCTION, pedal, mode, inverted])
+    return send_cmd_to_foot_pedal(CMD_SET_BUTTON_FUNCTION,
+                                  struct.pack("<BBB", pedal, mode, inverted))
 
 
 def type_char(text: str):
     "Send ASCII characters to be typed out by the hardware."
-    # Null terminated string.
-    return send_to_foot_pedal([
-        MSG_TYPE_ASCII_STR, *text.encode(encoding="ASCII", errors='strict'),
-        0x00
-    ])
+    return send_cmd_to_foot_pedal(CMD_TYPE_ASCII_STR,
+                                  convert_to_zstr_bytes(text))
 
 
 def set_stored_string(text: str):
@@ -139,42 +185,30 @@ def set_stored_string(text: str):
     String must be valid ASCII.
     """
     # Note: Null terminated string.
-    send_to_foot_pedal([
-        MSG_SET_SAVED_ASCII_STR,
-        *text.encode(encoding="ASCII", errors='strict'), 0x00
-    ])
+    send_cmd_to_foot_pedal(CMD_SET_SAVED_ASCII_STR,
+                           convert_to_zstr_bytes(text))
 
 
 def type_stored_string():
-    send_to_foot_pedal([MSG_TYPE_SAVED_ASCII_STR])
+    send_cmd_to_foot_pedal(CMD_TYPE_SAVED_ASCII_STR)
 
 
-def echo_test():
-    msg = ("Hellow World!" + "\n").encode(encoding="ASCII", errors='strict')
-    # Null terminated string.
-    buf = [MSG_ECHO, *msg, 0x00]
-    print(f"foot pedal message to send: {buf}")
-    if result := send_to_foot_pedal(buf, block_for_response=True):
-        print(f"result type: {type(result)}")
-        print(f"echo test result: {result}")
-    else:
-        print("no result from echo test")
-
-
-def generate(keycodes: list[int | str]) -> bytes:
+def generate_keycode_bytes(keycodes: list[int | str]) -> bytes:
     # Create a struct packed with little-endian uint16_t's.
+    # See Teensy docs on keycodes being uint16's.
     fmt = '<' + ('H' * len(keycodes))
     # Allow the use of 'c' literals in keycodes.
     san_keycodes = map(lambda k: ord(k) if isinstance(k, str) else k, keycodes)
     return struct.pack(fmt, *san_keycodes)
 
 
-def set_macro(btn: int, keycodes: list[int | str]):
-    keys = generate(keycodes)
-    # decode keycodes into little endian [uint16_t]
-    buf = [MSG_SET_BUTTON_FUNCTION_EX, btn, len(keycodes), *keys]
-    print(buf)
-    if result := send_to_foot_pedal(buf, block_for_response=True):
+def set_keycombo(btn: int, keycodes: list[int | str], inverted: int = 0):
+    """
+    keycodes list need to be a single character or key.
+    """
+    payload = (btn.to_bytes(1) + inverted.to_bytes(1) +
+               len(keycodes).to_bytes(1) + generate_keycode_bytes(keycodes))
+    if result := send_cmd_to_foot_pedal(CMD_SET_BUTTON_FUNCTION_EX, payload):
         print(f"result: {result}")
 
 
@@ -188,14 +222,18 @@ if __name__ == "__main__":
     # Note that you can't send serial messages
     # when the serial monitor is open in the Arduino IDE!
 
+    from time import sleep
+    from scan_codes import *
+
+    TESTING_COM_PORT_NAME = "COM3"
+    TESTING = True
+
     # print_available_serial_ports()
-
     # echo_test()
+    # type_char("hello\n")
+    # set_stored_string("storedstringtest\n")
+    # type_stored_string()
+    # change_mode(2, modes.middle, 0)
+    # sleep(4)
     # reset_modes_to_default()
-
-    # change_mode(2, modes.orbit, 0)
-    import scan_codes
-    KEY_BACKSPACE = 42 | 0xF000
-    MODIFIERKEY_SHIFT = 0x02 | 0xE000
-    MODIFIERKEY_CTRL = 0x01 | 0xE000
-    set_macro(1, [MODIFIERKEY_CTRL, 'v'])
+    set_keycombo(2, [MODIFIERKEY_SHIFT, "c"])

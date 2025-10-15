@@ -46,6 +46,7 @@ idea for scrolling mode:
 
 #include "button.h"
 #include "constants.h"
+#include "serial-msg-parsing.h"
 
 #include "test-scan-codes.h"
 
@@ -87,9 +88,7 @@ std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
 //                     GLOBAL VARIABLES                       //
 ////////////////////////////////////////////////////////////////
 
-// TODO: change to standard array
-constexpr const int k_buffer_size = MAX_STR_LENGTH;
-byte g_input_buffer[k_buffer_size];
+std::array<byte, MAX_PAYLOAD_SIZE> g_payload_buf;
 
 /**
  * Copy the contents of source null terminated
@@ -102,7 +101,7 @@ string_copy(char* destination, const char* source)
 {
   for (int i = 0;; i++) {
     // Protect against buffer overruns.
-    if (i >= MAX_STR_LENGTH) {
+    if (i >= MAX_PAYLOAD_SIZE) {
       return -1;
     }
 
@@ -143,7 +142,7 @@ void
 set_vault(const char* data)
 {
   // Protect against buffer overruns.
-  for (int i = 0; i < MAX_STR_LENGTH; i++) {
+  for (int i = 0; i < MAX_PAYLOAD_SIZE; i++) {
     byte c = data[i];
     EEPROM.update(i, c);
     if ('\0' == c) {
@@ -160,7 +159,7 @@ set_vault(const char* data)
 void
 type_vault()
 {
-  for (int i = 0; i < MAX_STR_LENGTH; i++) {
+  for (int i = 0; i < MAX_PAYLOAD_SIZE; i++) {
     auto c = (char)EEPROM.read(i);
     if ('\0' != c) {
       Keyboard.write(c);
@@ -173,7 +172,7 @@ type_vault()
 void
 type_string(const char* text)
 {
-  for (int i = 0; i < MAX_STR_LENGTH; i++) {
+  for (int i = 0; i < MAX_PAYLOAD_SIZE; i++) {
     const char c = text[i];
     if ('\0' != c) {
       Keyboard.write(c);
@@ -198,77 +197,20 @@ fire_macro(const uint16_t* keycodes, const size_t count)
 }
 
 /**
- * Receiving serial input is used to change pedal mode
- * through the use of scripts on the host pc.
- *
- * Note that I use no log statements to debug serial
- * communications. I can't send serial to the teensy through the
- * normal ports when I'm monitoring serial through the Arduino
- * application.
- */
-bool
-receive_serial_input()
-{
-  constexpr byte start_marker = 16;
-  constexpr byte end_marker = 17;
-  bool found_start_marker = false;
-  byte index = 0;
-  byte rb;
-
-  // Clear the input buffer.
-  memset((void*)g_input_buffer, 0, k_buffer_size);
-
-  // TODO: return the size of the data in the message?
-  while (Serial.available() > 0) {
-    rb = Serial.read();
-    // Serial.print("get byte: ");
-    // Serial.write(rb);
-    // Serial.write("-\n");
-    if (found_start_marker) {
-      if (rb != end_marker && index < k_buffer_size) {
-        g_input_buffer[index++] = rb;
-      } else if (rb == end_marker && index <= k_buffer_size) {
-        // A valid end marker was found before
-        // the buffer was full.
-        return true;
-      } else {
-        // Buffer full but no end marker.
-        // Reject the message.
-        // Serial.write("The message was too long.\n");
-        return false;
-      }
-    } else if (rb == start_marker)
-      found_start_marker = true;
-  }
-
-  // No start marker found or no serial was available
-  // or message was not long enough
-  return false;
-}
-
-// Possible future scheme using structs.
-// struct __attribute__((packed)) ButtonParameters{};
-
-/**
  * Decode and handle the message.
  */
 void
-handle_message()
+handle_message(SerialMsgHeader* header, unsigned char* payload)
 {
-  // First byte is the message code.
-  // The remaining bytes are dependent on the message code.
-  const int message_code = g_input_buffer[0];
-  const byte* data = g_input_buffer + 1;
-
-  switch (message_code) {
+  switch (header->cmd) {
     // Return an identifier code to confirm this is the board I
     // want to send serial commands to.
-    case MSG_IDENTIFY:
+    case CMD_IDENTIFY:
       Serial.print(DEVICE_ID_RESPONSE);
       break;
 
     // Reset all buttons to defaults.
-    case MSG_RESET_BUTTONS_TO_DEFAULT:
+    case CMD_RESET_BUTTONS_TO_DEFAULT:
       // Lets go of all keys currently pressed. See Keyboard.press().
       Keyboard.releaseAll();
       for (auto& b : buttons) {
@@ -277,57 +219,56 @@ handle_message()
       break;
 
     // Send hardware character keystrokes to computer.
-    case MSG_SEND_ASCII_KEYS:
-      type_string((const char*)data);
+    case CMD_SEND_ASCII_KEYS:
+      type_string((const char*)payload);
       break;
 
     // Load the null terminated c-string received into
     // the onboard EEPROM.
-    case MSG_SET_VAULT:
-      set_vault((const char*)data);
+    case CMD_SET_VAULT:
+      set_vault((const char*)payload);
       break;
 
-    case MSG_KEYBOARD_TYPE_VAULT:
+    case CMD_KEYBOARD_TYPE_VAULT:
       type_vault();
       break;
 
     // Echo back the message payload over serial.
     // Used for testing.
-    case MSG_ECHO:
-      // Return the sent string.
-      Serial.println((const char*)data);
+    case CMD_ECHO:
+      Serial.write((const char*)payload, header->length);
+      Serial.write('\n');
       break;
 
     // Change the mode of a pedal.
-    case MSG_SET_BUTTONS: {
-      auto mx = reinterpret_cast<const SetButtonMsg*>(data);
+    case CMD_SET_BUTTON_MODE: {
+      auto mx = reinterpret_cast<const CmdPayloadSetButtonMode*>(payload);
 
       if (valid_button_parameters(mx->pedal_index, mx->mode, mx->inversion)) {
         buttons[mx->pedal_index].set_mode(mx->mode, mx->inversion);
       }
       break;
     }
-    case MSG_SET_BUTTONS_EX: {
-      const byte pedal_index = data[0];
-      // TODO: make this truth come from my message receive function
-      const byte cnt = data[1];
-      auto keycodes = reinterpret_cast<const uint16_t*>(&data[2]);
+    case CMD_SET_KEYCOMBO: {
+      auto mx = reinterpret_cast<CmdPayloadSetKeycombo*>(payload);
+      auto& btn = buttons[mx->pedal_index];
 
-      // auto msg = reinterpret_cast<SetButtonMsgEx*>(data);
-
-      auto& btn = buttons[pedal_index];
-
-      if (cnt > btn.keycodes.size()) {
-        Serial.println("Data is too big.");
+      if (mx->nKeycodes > btn.keycodes.size()) {
+        Serial.print("Data is too big.\n");
         break;
       }
 
-      memcpy(btn.keycodes.data(), keycodes, cnt * sizeof(uint16_t));
-      btn.nKeycodes = cnt;
+      memcpy(
+        btn.keycodes.data(), mx->keycodes, mx->nKeycodes * sizeof(uint16_t));
+      btn.nKeycodes = mx->nKeycodes;
       btn.mode = MODE_KEYCOMBO;
-      btn.inverted = 0;
-      break;
-    }
+      btn.inverted = mx->inverted;
+
+    } break;
+    case CMD_RETURN_CRC: {
+      uint32_t result = crc32(payload, header->length);
+      Serial.println(result);
+    } break;
   }
 }
 
@@ -461,25 +402,25 @@ setup()
   // set_vault("EEPROM test value");
 }
 
-unsigned long previous = 0;
+unsigned long previous_btn_check = 0;
 
 // TESTING: Measuring elapsed time between loop iterations.
 // 2025-03-31 Test Results:
 // (24MHz Debug Build) Avg = 4.6 µs; Max = 12 µs; Min = 4 µs
 // (600MHz Fastest with LTO) Avg = 0.1 µs; Max = 1 µs; Min = 0 µs
-// #define TEST_LOOP_ELAPSED_TIME
-#ifdef TEST_LOOP_ELAPSED_TIME
+// #define TEST_ELAPSED_TIME_IN_MAIN_LOOP
+#ifdef TEST_ELAPSED_TIME_IN_MAIN_LOOP
 const int TIMES_ARRAY_SIZE = 128;
 int idx_times_arr = 0;
 unsigned long times[TIMES_ARRAY_SIZE];
-#endif // TEST_LOOP_ELAPSED_TIME
+#endif // TEST_ELAPSED_TIME_IN_MAIN_LOOP
 
 void
 loop()
 {
   unsigned long now = micros();
 
-#ifdef TEST_LOOP_ELAPSED_TIME
+#ifdef TEST_ELAPSED_TIME_IN_MAIN_LOOP
   times[idx_times_arr++] = now;
   if (idx_times_arr >= 128) {
     for (size_t i = 0; i < TIMES_ARRAY_SIZE; i++) {
@@ -490,10 +431,10 @@ loop()
     Serial.flush();
     abort();
   }
-#endif // TEST_LOOP_ELAPSED_TIME
+#endif // TEST_ELAPSED_TIME_IN_MAIN_LOOP
 
-  if ((now - previous) > POLL_PERIOD_US) {
-    previous = now;
+  if ((now - previous_btn_check) > POLL_PERIOD_US) {
+    previous_btn_check = now;
 
     // Check each button.
     for (auto& btn : buttons) {
@@ -504,9 +445,12 @@ loop()
   }
 
   if (Serial.available()) {
-
-    if (receive_serial_input()) {
-      handle_message();
+    SerialMsgHeader header;
+    if (validate_frame_and_get_payload(
+          &header, g_payload_buf.data(), g_payload_buf.size())) {
+      handle_message(&header, g_payload_buf.data());
+    } else {
+      Serial.println("Not a valid message.");
     }
   }
 }
