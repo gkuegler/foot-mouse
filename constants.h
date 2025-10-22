@@ -1,5 +1,5 @@
-#ifndef FOOT_MOUSE_CONSTANTS_H
-#define FOOT_MOUSE_CONSTANTS_H
+#ifndef FOOTMOUSE_CONSTANTS_H
+#define FOOTMOUSE_CONSTANTS_H
 
 #include <Keyboard.h>
 #include <Mouse.h>
@@ -84,4 +84,4 @@ enum CmdCode
   CMD_RETURN_CRC = 12
 };
 
-#endif // FOOT_MOUSE_CONSTANTS_H
+#endif // FOOTMOUSE_CONSTANTS_H

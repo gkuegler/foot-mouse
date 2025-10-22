@@ -68,16 +68,16 @@ Model number 1 is the pro-micro board (with 1 foot pedal &
 mode switch). It's not supported by this sketch.
 Model number 2 is the teensy unit with 3 pedals.
 */
-#define FOOT_MOUSE_3_BUTTONS
+#define FOOTMOUSE_3_BUTTONS
 
-#if defined(FOOT_MOUSE_3_BUTTONS)
+#if defined(FOOTMOUSE_3_BUTTONS)
 std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(5, MODE_MOUSE_MIDDLE, NORMAL),
                                Button(6, MODE_MOUSE_RIGHT, NORMAL) };
 /*
  * Dual stereo jacks
  */
-#elif defined(FOOT_MOUSE_TRAVEL_4BTN)
+#elif defined(FOOTMOUSE_TRAVEL_4BTN)
 std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(5, MODE_MOUSE_MIDDLE, NORMAL),
                                Button(6, MODE_MOUSE_RIGHT, NORMAL),

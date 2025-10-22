@@ -1,5 +1,5 @@
-#ifndef FOOT_MOUSE_BUTTON_H
-#define FOOT_MOUSE_BUTTON_H
+#ifndef FOOTMOUSE_BUTTON_H
+#define FOOTMOUSE_BUTTON_H
 
 #include "constants.h"
 
@@ -110,4 +110,4 @@ public:
   }
 };
 
-#endif // FOOT_MOUSE_BUTTON_H
+#endif // FOOTMOUSE_BUTTON_H
