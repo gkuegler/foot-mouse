@@ -13,7 +13,9 @@ import serial.tools.list_ports
 # import zlib
 
 TEENSY_PAYLOAD_BUFFER_SIZE = 512
+BAUD_RATE = 115200
 
+NAME = b"footmouse\n"
 TESTING_COM_PORT_NAME = "COM3"
 TESTING = False
 
@@ -71,7 +73,7 @@ def MemoizeCallNoArgs(function):
 
 
 def send_serial(port, buf: bytes, block_for_response=False):
-    with serial.Serial(port, 9600, write_timeout=1, timeout=1) as s:
+    with serial.Serial(port, BAUD_RATE, write_timeout=1, timeout=1) as s:
         s.write(buf)
         s.flush()
         if TESTING:
@@ -127,7 +129,7 @@ def find_footmouse_com_port_name() -> str | None:
             lines = send_serial_and_get_lines(
                 port.name, get_structured_bytes(CMD_IDENTIFY))
             # There could be several log messages over serial that get in the way.
-            if b"footmouse\n" in lines:
+            if NAME in lines:
                 return port.name
             else:
                 # print(f"'{port.name}' not the COM port I'm looking for.")
@@ -225,15 +227,15 @@ if __name__ == "__main__":
     from time import sleep
     from scan_codes import *
 
-    TESTING_COM_PORT_NAME = "COM3"
-    TESTING = True
+    # TESTING_COM_PORT_NAME = "COM12"
+    # TESTING = True
 
     # print_available_serial_ports()
     # echo_test()
     # type_char("hello\n")
     # set_stored_string("storedstringtest\n")
     # type_stored_string()
-    # change_mode(2, modes.middle, 0)
+    change_mode(2, modes.double, 0)
     # sleep(4)
     # reset_modes_to_default()
-    set_keycombo(2, [MODIFIERKEY_SHIFT, "c"])
+    # set_keycombo(2, [MODIFIERKEY_SHIFT, "c"])

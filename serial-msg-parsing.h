@@ -119,7 +119,7 @@ validate_frame_and_get_payload(SerialMsgHeader* header,
   }
 
   // CRC check.
-  if (crc32(buf, header->length) != header->crc32) {
+  if (crc::crc32(buf, header->length) != header->crc32) {
     Serial.print("CRC-32 check failed.\n");
     // TODO: need to return crc and other stuff for debug purposes.
     // return NULL;

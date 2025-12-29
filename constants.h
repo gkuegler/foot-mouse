@@ -1,8 +1,4 @@
-#ifndef FOOTMOUSE_CONSTANTS_H
-#define FOOTMOUSE_CONSTANTS_H
-
-#include <Keyboard.h>
-#include <Mouse.h>
+#pragma once
 
 #define AUTO_DISABLE_BTN_ON_START
 
@@ -11,34 +7,15 @@
 #define DEBOUNCE_RESET    20000 // microseconds
 #define MAX_PAYLOAD_SIZE  512
 
-// NOTE: Opening the serial monitor on Arduino IDE will lock
-// serial access two external scripts.
-#define DEBUG 1
-
 #define DEVICE_ID_RESPONSE "footmouse\n"
 
-// Yahmaho foot pedal behaviors.
+// Yahmaha foot pedal behaviors.
 #define DIGITAL_READ_DISCONNECTED_PEDAL 1
 #define DIGITAL_READ_PEDAL_DOWN         1
 #define DIGITAL_READ_PEDAL_UP           0
 
 #define NORMAL   false // press foot down to engage action
 #define INVERTED true  // lift foot up to engage engage action
-
-// Tempoary keyboard shortcut programming. The special key is used to send
-// keystrokes to the computer (i.e. F24) that can't be replicated on my keyboard
-// when I am trying to set keyboard shortcuts on devices (and in programs) that
-// require the key to be pressed and captured. For example, programming Logitech
-// mouses.
-// #define SPECIAL_KEY KEY_F23
-// #define PROGRAM_SPECIAL
-
-// These constants are from Paul's mouse library 'Mouse.h'.
-// I use these constants as my mode enum to save memory and
-// for code brevity.
-static_assert(MOUSE_LEFT == 1, "Mouse constants have changed.");
-static_assert(MOUSE_RIGHT == 2, "Mouse constants have changed.");
-static_assert(MOUSE_MIDDLE == 4, "Mouse constants have changed.");
 
 /**
  * PEDAL MODE DESCRIPTIONS:
@@ -57,9 +34,9 @@ static_assert(MOUSE_MIDDLE == 4, "Mouse constants have changed.");
 enum PedalMode
 {
   MODE_NONE = 0,
-  MODE_MOUSE_LEFT = MOUSE_LEFT,
-  MODE_MOUSE_RIGHT = MOUSE_RIGHT,
-  MODE_MOUSE_MIDDLE = MOUSE_MIDDLE,
+  MODE_MOUSE_LEFT = 1,
+  MODE_MOUSE_RIGHT = 2,
+  MODE_MOUSE_MIDDLE = 4,
   MODE_MOUSE_DOUBLE = 8,
   MODE_CTRL_CLICK = 15,
   MODE_SHIFT_CLICK = 18,
@@ -83,5 +60,3 @@ enum CmdCode
   CMD_KEYBOARD_TYPE_VAULT = 11,
   CMD_RETURN_CRC = 12
 };
-
-#endif // FOOTMOUSE_CONSTANTS_H

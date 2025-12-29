@@ -26,29 +26,47 @@ a Serial library.
 e.g. "Serial + Keyboard + Mouse + Joystick"
 you can't monitor serial and send from typical port
 
+Yamaha foot pedals:
 pedal up -> closes circuit -> pin pulled low
 pedal down -> opens circuit -> pin pulled high via external
 resistor
-
-idea for scrolling mode:
-1. send single byte message to server
-2. server checks current coordinates of mouse
-3. if mouse is in left-hand area of screen
-4. send single bite message back
-    to release the middle click
 */
 
 #include <array>
 
+/* Need to install 'Teensy (for Arduino ...) library from Paul. */
+#if defined(TEENSYDUINO)
+#define TEENSY
+#define BOARD_TEENSY_4_3_BUTTONS
+// Alternate definers for Teensyduino:  || defined(ARDUINO_TEENSY40) || defined(__IMXRT1062__)
+// Note that NRF and ESP boards do not have EEPROM.
 #include <EEPROM.h>
 #include <Keyboard.h>
 #include <Mouse.h>
+
+
+/* Need to install 'Seeed nRF52 Boards' library. 
+Seeed libraries should include tinyusb support.
+The adafruit tinyusb library does not support the nRF52 core. */
+#elif defined(ARDUINO_ARCH_NRF52) // || defined(NRF52840_XXAA) ||
+                                  // defined(ARDUINO_NRF52840)
+#define NRF52
+#define BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS
+#define COMPILE_TINY_USB_HID_SHIM
+#include "tinyusbhidshim.h"
+HIDCompat::KeyboardTinyUsbShim Keyboard;
+HIDCompat::MouseTinyUsbShim Mouse;
+
+#else
+#error "No HID implementation configured for this board."
+#endif
 
 #include "button.h"
 #include "constants.h"
 #include "serial-msg-parsing.h"
 
-#include "test-scan-codes.h"
+// Add temporarily to your sketch to see which macros are defined.
+// #include "test-keycodes-serial-api.h"
 
 // FUTURE: Since pedals are detected at startup, I might want to provide a map
 // to determine what preset config the pedals are in depending on which are
@@ -58,36 +76,32 @@ idea for scrolling mode:
 
 ////////////////////////////////////////////////////////////////
 //                      BOARD SELECTION                       //
+//         Select the board and their default Buttons.        //
 ////////////////////////////////////////////////////////////////
 
-// Select the board and their Buttons and their defaults.
+// Classic black plastic box with (3) 1/4 jacks.
+// #define FOOTMOUSE_3_BUTTONS
 
-/*
-UNIT DESCRIPTIONS:
-Model number 1 is the pro-micro board (with 1 foot pedal &
-mode switch). It's not supported by this sketch.
-Model number 2 is the teensy unit with 3 pedals.
-*/
-#define FOOTMOUSE_3_BUTTONS
+// Small board with dual stereo jacks.
+#define BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS
 
-#if defined(FOOTMOUSE_3_BUTTONS)
+#if defined(BOARD_TEENSY_4_3_BUTTONS)
 std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(5, MODE_MOUSE_MIDDLE, NORMAL),
                                Button(6, MODE_MOUSE_RIGHT, NORMAL) };
-/*
- * Dual stereo jacks
- */
-#elif defined(FOOTMOUSE_TRAVEL_4BTN)
-std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
-                               Button(5, MODE_MOUSE_MIDDLE, NORMAL),
-                               Button(6, MODE_MOUSE_RIGHT, NORMAL),
-                               Button(6, MODE_MOUSE_ORBIT, NORMAL) };
+
+#elif defined(BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS)
+std::array<Button, 4> buttons{ Button(D6, MODE_MOUSE_LEFT, INVERTED),
+                               Button(D7, MODE_MOUSE_MIDDLE, NORMAL),
+                               Button(D10, MODE_MOUSE_RIGHT, NORMAL),
+                               Button(D4, MODE_ORBIT, NORMAL) };
 #endif
 
 ////////////////////////////////////////////////////////////////
 //                     GLOBAL VARIABLES                       //
 ////////////////////////////////////////////////////////////////
 
+// Serial COM port command buffer.
 std::array<byte, MAX_PAYLOAD_SIZE> g_payload_buf;
 
 /**
@@ -135,6 +149,7 @@ valid_button_parameters(const int pedal_index,
   return true;
 }
 
+#if defined(TEENSY)
 /**
  * Save a string of characters to persistent storage.
  */
@@ -168,6 +183,8 @@ type_vault()
     }
   }
 }
+
+#endif
 
 void
 type_string(const char* text)
@@ -223,6 +240,8 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
       type_string((const char*)payload);
       break;
 
+#if defined(TEENSY)
+
     // Load the null terminated c-string received into
     // the onboard EEPROM.
     case CMD_SET_VAULT:
@@ -232,6 +251,8 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
     case CMD_KEYBOARD_TYPE_VAULT:
       type_vault();
       break;
+
+#endif
 
     // Echo back the message payload over serial.
     // Used for testing.
@@ -249,6 +270,7 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
       }
       break;
     }
+
     case CMD_SET_KEYCOMBO: {
       auto mx = reinterpret_cast<CmdPayloadSetKeycombo*>(payload);
       auto& btn = buttons[mx->pedal_index];
@@ -265,10 +287,14 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
       btn.inverted = mx->inverted;
 
     } break;
+
     case CMD_RETURN_CRC: {
-      uint32_t result = crc32(payload, header->length);
+      uint32_t result = crc::crc32(payload, header->length);
       Serial.println(result);
     } break;
+
+    default:
+      break;
   }
 }
 
@@ -294,8 +320,10 @@ send_input(int mode, bool engage, Button& btn)
       break;
 
     case MODE_MOUSE_DOUBLE:
-      Mouse.click();
-      Mouse.click();
+      if (engage) {
+        Mouse.click();
+        Mouse.click();
+      }
       break;
 
     case MODE_CTRL_CLICK:
@@ -381,8 +409,8 @@ setup()
   // Note both Mouse.begin() and Keyboard.begin() are empty methods, but it's
   // important to call them in case the implementation changes. '.begin()' is
   // arduino standard.
-  Mouse.begin();
   Keyboard.begin();
+  Mouse.begin();
 
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
@@ -396,10 +424,7 @@ setup()
       btn.enabled = false;
     }
 #endif
-  }
-
-  // For EEPROM testing.
-  // set_vault("EEPROM test value");
+  }  
 }
 
 unsigned long previous_btn_check = 0;
@@ -420,6 +445,14 @@ loop()
 {
   unsigned long now = micros();
 
+#if defined(USING_TINY_USB)
+  // Wait until USB mounted.
+  if (!TinyUSBDevice.mounted()) {
+    Serial.println("Not yet mounted.");
+    return;
+  }
+#endif // USING_TINY_USB
+
 #ifdef TEST_ELAPSED_TIME_IN_MAIN_LOOP
   times[idx_times_arr++] = now;
   if (idx_times_arr >= 128) {
@@ -431,6 +464,7 @@ loop()
     Serial.flush();
     abort();
   }
+
 #endif // TEST_ELAPSED_TIME_IN_MAIN_LOOP
 
   if ((now - previous_btn_check) > POLL_PERIOD_US) {
@@ -446,6 +480,7 @@ loop()
 
   if (Serial.available()) {
     SerialMsgHeader header;
+
     if (validate_frame_and_get_payload(
           &header, g_payload_buf.data(), g_payload_buf.size())) {
       handle_message(&header, g_payload_buf.data());
