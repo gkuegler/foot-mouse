@@ -7,6 +7,9 @@
 #define DEBOUNCE_RESET    20000 // microseconds
 #define MAX_PAYLOAD_SIZE  512
 
+#define KEEP_AWAKE_PERIOD_S 120
+#define KEEP_AWAKE_KEY      KEY_F22
+
 #define DEVICE_ID_RESPONSE "footmouse\n"
 
 // Yahmaha foot pedal behaviors.
@@ -58,5 +61,7 @@ enum CmdCode
   CMD_SEND_ASCII_KEYS = 8,
   CMD_SET_VAULT = 10,
   CMD_KEYBOARD_TYPE_VAULT = 11,
-  CMD_RETURN_CRC = 12
+  CMD_RETURN_CRC = 12,
+  CMD_KEEP_AWAKE_ENABLE = 13,
+  CMD_KEEP_AWAKE_DISABLE = 14
 };

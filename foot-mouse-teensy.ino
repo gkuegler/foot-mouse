@@ -38,14 +38,13 @@ resistor
 #if defined(TEENSYDUINO)
 #define TEENSY
 #define BOARD_TEENSY_4_3_BUTTONS
-// Alternate definers for Teensyduino:  || defined(ARDUINO_TEENSY40) || defined(__IMXRT1062__)
-// Note that NRF and ESP boards do not have EEPROM.
+// Alternate definers for Teensyduino:  || defined(ARDUINO_TEENSY40) ||
+// defined(__IMXRT1062__) Note that NRF and ESP boards do not have EEPROM.
 #include <EEPROM.h>
 #include <Keyboard.h>
 #include <Mouse.h>
 
-
-/* Need to install 'Seeed nRF52 Boards' library. 
+/* Need to install 'Seeed nRF52 Boards' library.
 Seeed libraries should include tinyusb support.
 The adafruit tinyusb library does not support the nRF52 core. */
 #elif defined(ARDUINO_ARCH_NRF52) // || defined(NRF52840_XXAA) ||
@@ -64,6 +63,7 @@ HIDCompat::MouseTinyUsbShim Mouse;
 #include "button.h"
 #include "constants.h"
 #include "serial-msg-parsing.h"
+#include "timer.h"
 
 // Add temporarily to your sketch to see which macros are defined.
 // #include "test-keycodes-serial-api.h"
@@ -103,6 +103,10 @@ std::array<Button, 4> buttons{ Button(D6, MODE_MOUSE_LEFT, INVERTED),
 
 // Serial COM port command buffer.
 std::array<byte, MAX_PAYLOAD_SIZE> g_payload_buf;
+
+// Send meaningless keyboard input (e.g. F22 press) periodically to keep
+// computer awake.
+auto wake_timer = Timer();
 
 /**
  * Copy the contents of source null terminated
@@ -293,6 +297,14 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
       Serial.println(result);
     } break;
 
+    case CMD_KEEP_AWAKE_ENABLE:
+      wake_timer.enable();
+      break;
+
+    case CMD_KEEP_AWAKE_DISABLE:
+      wake_timer.disable();
+      break;
+
     default:
       break;
   }
@@ -424,7 +436,10 @@ setup()
       btn.enabled = false;
     }
 #endif
-  }  
+  }
+
+  wake_timer.start(KEEP_AWAKE_PERIOD_S * 1000);
+  wake_timer.disable();
 }
 
 unsigned long previous_btn_check = 0;
@@ -476,6 +491,12 @@ loop()
         send_input(btn.mode, btn.should_engage(), btn);
       }
     }
+  }
+
+  if (wake_timer.update()) {
+    Keyboard.press(KEEP_AWAKE_KEY);
+    delay(1);
+    Keyboard.release(KEEP_AWAKE_KEY);
   }
 
   if (Serial.available()) {

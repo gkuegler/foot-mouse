@@ -42,6 +42,9 @@ CMD_ECHO = 7
 CMD_TYPE_ASCII_STR = 8
 CMD_SET_SAVED_ASCII_STR = 10
 CMD_TYPE_SAVED_ASCII_STR = 11
+CMD_RETURN_CRC = 12
+CMD_KEEP_AWAKE_ENABLE = 13
+CMD_KEEP_AWAKE_DISABLE = 14
 
 
 def convert_to_zstr_bytes(string: str):
@@ -214,6 +217,14 @@ def set_keycombo(btn: int, keycodes: list[int | str], inverted: int = 0):
         print(f"result: {result}")
 
 
+def keep_awake_enable():
+    send_cmd_to_foot_pedal(CMD_KEEP_AWAKE_ENABLE)
+
+
+def keep_awake_disable():
+    send_cmd_to_foot_pedal(CMD_KEEP_AWAKE_DISABLE)
+
+
 def print_available_serial_ports():
     print("Available serial ports:")
     print(serial.tools.list_ports.main())
@@ -235,7 +246,9 @@ if __name__ == "__main__":
     # type_char("hello\n")
     # set_stored_string("storedstringtest\n")
     # type_stored_string()
-    change_mode(2, modes.double, 0)
+    # change_mode(2, modes.double, 0)
     # sleep(4)
     # reset_modes_to_default()
     # set_keycombo(2, [MODIFIERKEY_SHIFT, "c"])
+    # keep_awake_disable()
+    # keep_awake_enable()
