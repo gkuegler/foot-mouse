@@ -25,6 +25,7 @@ class modes(IntEnum):
     left = 1
     middle = 4
     right = 2
+    right_quick_fire = 6
     double = 8
     control_click = 15
     alternate = 32
@@ -246,7 +247,7 @@ if __name__ == "__main__":
     # type_char("hello\n")
     # set_stored_string("storedstringtest\n")
     # type_stored_string()
-    # change_mode(2, modes.double, 0)
+    # change_mode(2, modes.right_quick_fire, 0)
     # sleep(4)
     # reset_modes_to_default()
     # set_keycombo(2, [MODIFIERKEY_SHIFT, "c"])

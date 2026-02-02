@@ -88,12 +88,12 @@ HIDCompat::MouseTinyUsbShim Mouse;
 #if defined(BOARD_TEENSY_4_3_BUTTONS)
 std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(5, MODE_MOUSE_MIDDLE, NORMAL),
-                               Button(6, MODE_MOUSE_RIGHT, NORMAL) };
+                               Button(6, MODE_MOUSE_RIGHT_QUICK_FIRE, NORMAL) };
 
 #elif defined(BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS)
 std::array<Button, 4> buttons{ Button(D6, MODE_MOUSE_LEFT, INVERTED),
                                Button(D7, MODE_MOUSE_MIDDLE, NORMAL),
-                               Button(D10, MODE_MOUSE_RIGHT, NORMAL),
+                               Button(D10, MODE_MOUSE_RIGHT_QUICK_FIRE, NORMAL),
                                Button(D4, MODE_ORBIT, NORMAL) };
 #endif
 
@@ -318,6 +318,7 @@ send_input(int mode, bool engage, Button& btn)
     // corresponds to the Mouse Library button constant value.
     case MODE_MOUSE_LEFT:
     case MODE_MOUSE_MIDDLE:
+    case MODE_MOUSE_RIGHT:
       if (engage) {
         Mouse.press(mode);
       } else {
@@ -325,7 +326,7 @@ send_input(int mode, bool engage, Button& btn)
       }
       break;
 
-    case MODE_MOUSE_RIGHT:
+    case MODE_MOUSE_RIGHT_QUICK_FIRE:
       if (engage) {
         Mouse.click(MOUSE_RIGHT);
       }
