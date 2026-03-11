@@ -3,7 +3,6 @@
 // - Implements: begin(), write(), press(), release(), releaseAll()
 // - Implements: begin(), press(), release(), click()
 
-
 // Prevent compiling if not using an architecture that uses tinyusb.
 #if defined(ARDUINO_ARCH_NRF52)
 
@@ -12,8 +11,8 @@
 #include <Arduino.h>
 
 // Seeed Studio has provided compatible versions of adafruit's tinyusb library.
-#include <Adafruit_TinyUSB.h>
 #include "FreeRTOS.h"
+#include <Adafruit_TinyUSB.h>
 
 #include "tinyusbkeycodes.h"
 
@@ -37,43 +36,43 @@ static bool initialized = false;
 
 // Using a composite device also requires report_id's in report function calls.
 // composite HID report: keyboard (ID 1), mouse (ID 2), consumer (ID 3)
-static uint8_t const desc_hid_report[] =
-{
-    TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(RID_KEYBOARD)),
-    TUD_HID_REPORT_DESC_MOUSE   (HID_REPORT_ID(RID_MOUSE)),
-    // TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(RID_CONSUMER_CONTROL))
+static uint8_t const desc_hid_report[] = {
+  TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(RID_KEYBOARD)),
+  TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(RID_MOUSE)),
+  // TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(RID_CONSUMER_CONTROL))
 };
 
-
-static void init_usb() {
+static void
+init_usb()
+{
   // This is for the modern version 3.X
   // Seedstudio includes TinyUSB 1.X in its board package.
   if (!TinyUSBDevice.isInitialized()) {
     Serial.println("Initializing usb.");
 
-    TinyUSBDevice.begin(0);  
+    TinyUSBDevice.begin(0);
   }
 
-  if (!initialized){
+  if (!initialized) {
 
     usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
 
     // The primary purpose of the boot protocol is to provide a simplified,
     // standardized communication method for essential input devices like
-    // keyboards and mice, so they can be used in environments that do not have a
-    // full-featured USB driver stack, such as the system's BIOS/UEFI setup
+    // keyboards and mice, so they can be used in environments that do not have
+    // a full-featured USB driver stack, such as the system's BIOS/UEFI setup
     // utility. usb_hid.setBootProtocol(HID_ITF_PROTOCOL_MOUSE);
 
-    usb_hid.setPollInterval(2);  // ms
-    
+    usb_hid.setPollInterval(2); // ms
+
     // TinyUSBDevice.setManufacturerDescriptor("Me");
     // TinyUSBDevice.setProductDescriptor("Composite HID");
-    
+
     // Up to 11 string descriptors?
     // This is a bug! Don't set this.
     // usb_hid.setStringDescriptor("nRF52xTUSB");
 
-    if(!usb_hid.begin()) {
+    if (!usb_hid.begin()) {
       Serial.println("Failed to begin usb_hid.");
     }
 
@@ -88,10 +87,11 @@ static void init_usb() {
 
     initialized = true;
   }
-
 }
 
-static bool make_usb_ready(Adafruit_USBD_HID& usb){
+static bool
+make_usb_ready(Adafruit_USBD_HID& usb)
+{
   if (TinyUSBDevice.suspended()) {
     // Wake up host if we are in suspend mode
     // and REMOTE_WAKEUP feature is enabled by host.
@@ -99,10 +99,9 @@ static bool make_usb_ready(Adafruit_USBD_HID& usb){
     TinyUSBDevice.remoteWakeup();
   }
 
-  for (size_t i = 0; i < 1000; i++)
-  {
+  for (size_t i = 0; i < 1000; i++) {
     if (usb.ready()) {
-      Serial.printf("USB Ready Count: %d\n", i);
+      // Serial.printf("USB Ready Count: %d\n", i);
       return true;
     } else {
       vTaskDelay(1);
@@ -113,7 +112,9 @@ static bool make_usb_ready(Adafruit_USBD_HID& usb){
   return false;
 }
 
-static void flush() {
+static void
+flush()
+{
   // Send Report will wait for usb to become available again, so it's okay to
   // have no timeout before returning.
   tud_task_ext(0, FALSE);
@@ -136,15 +137,13 @@ KeyboardTinyUsbShim::send_report()
     return false;
   }
 
-
   if (usb_hid.ready()) {
     // return usb_hid.keyboardReport(RID_KEYBOARD, _mod, _keys);
-     bool result = usb_hid.keyboardReport(RID_KEYBOARD, _mod, _keys);
-     flush();
-     return result;
+    bool result = usb_hid.keyboardReport(RID_KEYBOARD, _mod, _keys);
+    flush();
+    return result;
+  }
 
-  }  
-  
   return false;
 }
 
@@ -256,6 +255,18 @@ KeyboardTinyUsbShim::write(char c)
   send_report();
 }
 
+void
+KeyboardTinyUsbShim::print(const char* s)
+{
+  int len = strlen(s);
+  Serial.print(len);
+
+  for (int i = 0; i <= len; i++) {
+    write(s[i]);
+    delay(50);
+  }
+}
+
 /*
 Currently only accepts Macros.
 TODO: Should I remove ASCII interface compliance?
@@ -266,7 +277,7 @@ KeyboardTinyUsbShim::press(uint16_t k)
   // Using Paul's Teensy key mapping.
   if ((k & 0xFF00) == 0xE000) {
     _mod |= (uint8_t)(k & 0xFF);
-    Serial.println("treat common modifiers");    
+    // Serial.println("treat common modifiers");
   } else if ((k & 0xFF00) == 0) {
     uint8_t mod = 0;
     uint8_t uid = ascii_to_hid_usage_id((uint8_t)k, mod);
@@ -278,20 +289,19 @@ KeyboardTinyUsbShim::press(uint16_t k)
   return send_report();
 }
 
-
 bool
 KeyboardTinyUsbShim::release(uint16_t k)
 {
-if (k & 0xE000) {
+  if (k & 0xE000) {
     _mod &= ~(uint8_t)(k & 0xFF);
-    Serial.println("treat common modifiers");    
+    // Serial.println("treat common modifiers");
   } else {
     remove_key((uint8_t)k);
   }
   return send_report();
 }
 
-bool 
+bool
 KeyboardTinyUsbShim::releaseAll()
 {
   Serial.println("releasing all keys");
@@ -344,4 +354,4 @@ MouseTinyUsbShim::click(uint8_t buttons)
 
 } // namespace HIDCompat
 
-#endif 
+#endif

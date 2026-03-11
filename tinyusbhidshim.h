@@ -15,6 +15,10 @@ class KeyboardTinyUsbShim
 public:
   void begin();
   void write(char c);
+
+  // Can't do symbols?
+  void print(const char* s);
+  
   // Also accepts ASCII keys.
   bool press(uint16_t k);
   bool release(uint16_t k);

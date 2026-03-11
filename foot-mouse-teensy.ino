@@ -91,10 +91,14 @@ std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
                                Button(6, MODE_MOUSE_RIGHT_QUICK_FIRE, NORMAL) };
 
 #elif defined(BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS)
-std::array<Button, 4> buttons{ Button(D6, MODE_MOUSE_LEFT, INVERTED),
-                               Button(D7, MODE_MOUSE_MIDDLE, NORMAL),
-                               Button(D10, MODE_MOUSE_RIGHT_QUICK_FIRE, NORMAL),
-                               Button(D4, MODE_ORBIT, NORMAL) };
+std::array<Button, 4> buttons{
+  Button(D6, MODE_MOUSE_LEFT, INVERTED),            // J1 Tip
+  Button(D7, MODE_MOUSE_MIDDLE, NORMAL),            // J2 Ring
+  Button(D10, MODE_MOUSE_RIGHT_QUICK_FIRE, NORMAL), // J2 Tip
+  Button(D3, MODE_ORBIT, NORMAL)                    // J1 Ring
+};
+
+#define SPECIAL_BITLOCKER_PIN_LOW D7
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -417,7 +421,7 @@ send_input(int mode, bool engage, Button& btn)
 void
 setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // Note both Mouse.begin() and Keyboard.begin() are empty methods, but it's
   // important to call them in case the implementation changes. '.begin()' is
@@ -425,10 +429,26 @@ setup()
   Keyboard.begin();
   Mouse.begin();
 
+#if defined(BITLOCKER_RECOVERY_MODE_FOR_NRF)
+  bool send_bitlocker_key_keystrokes = true;
+  int pin_read = 0;
+#endif
+
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
   for (auto& btn : buttons) {
     pinMode(btn.pin, INPUT);
+
+#if defined(BITLOCKER_RECOVERY_MODE_FOR_NRF)
+    pin_read = digitalRead(btn.pin);
+
+    if (btn.pin != SPECIAL_BITLOCKER_PIN_LOW && pin_read == 0) {
+      send_bitlocker_key_keystrokes = false;
+    } else if (btn.pin == SPECIAL_BITLOCKER_PIN_LOW && pin_read == 1) {
+      send_bitlocker_key_keystrokes = false;
+    }
+
+#endif
 
 // Disable a button if no pedal is plugged into the jack.
 // Alternatively, hold a pedal down on boot to disable that pedal.
@@ -439,8 +459,22 @@ setup()
 #endif
   }
 
+#if defined(BITLOCKER_RECOVERY_MODE_FOR_NRF)
+  if (send_bitlocker_key_keystrokes) {
+    delay(2000);
+    Keyboard.print(BITLOCKER_RECOVERY_KEY);
+  }
+#endif
+
   wake_timer.start(KEEP_AWAKE_PERIOD_S * 1000);
+  if (!KEEP_AWAKE_DEFAULT_STATE) {
+    wake_timer.disable();
+  }
+
+#if defined(ARDUINO_ARCH_NRF52)
+  // Keep awake does not work on tinyusbshim on nrf boards.
   wake_timer.disable();
+#endif
 }
 
 unsigned long previous_btn_check = 0;
@@ -460,6 +494,8 @@ void
 loop()
 {
   unsigned long now = micros();
+  // Serial.println("Serial started.");
+  // delay(1000);
 
 #if defined(USING_TINY_USB)
   // Wait until USB mounted.
@@ -491,12 +527,17 @@ loop()
       if (btn.debounce(digitalRead(btn.pin), now)) {
         send_input(btn.mode, btn.should_engage(), btn);
       }
+      // Serial.print(btn.pin);
+      // Serial.print(": ");
+      // Serial.print(btn.enabled);
+      // Serial.print(": ");
+      // Serial.println(digitalRead(btn.pin));
     }
   }
 
   if (wake_timer.update()) {
     Keyboard.press(KEEP_AWAKE_KEY);
-    delay(1);
+    delay(5);
     Keyboard.release(KEEP_AWAKE_KEY);
   }
 

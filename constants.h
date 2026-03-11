@@ -2,13 +2,24 @@
 
 #define AUTO_DISABLE_BTN_ON_START
 
+#if defined(ARDUINO_ARCH_NRF52)
+// Special mode for work computer Bitlocker recovery. Bitlocker recovery key
+// will be entered only once after a short delay from boot up. Normal operation
+// will resume after. Short the `R` terminal to ground on the 2nd 3.5mm TRS jack
+// at start up and leave all other pins open. This can be accomplished by
+// inserting a TS male jack into the second 3.5mm jack.
+#define BITLOCKER_RECOVERY_MODE_FOR_NRF
+#define BITLOCKER_REVOCERY_KEY "put secret here"
+#endif
+
 #define GLITCH_SAMPLE_CNT 5
 #define POLL_PERIOD_US    20
 #define DEBOUNCE_RESET    20000 // microseconds
 #define MAX_PAYLOAD_SIZE  512
 
-#define KEEP_AWAKE_PERIOD_S 120
-#define KEEP_AWAKE_KEY      KEY_F22
+#define KEEP_AWAKE_PERIOD_S      120
+#define KEEP_AWAKE_KEY           KEY_F22
+#define KEEP_AWAKE_DEFAULT_STATE true
 
 #define DEVICE_ID_RESPONSE "footmouse\n"
 
