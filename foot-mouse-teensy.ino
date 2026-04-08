@@ -526,6 +526,7 @@ loop()
     for (auto& btn : buttons) {
       if (btn.debounce(digitalRead(btn.pin), now)) {
         send_input(btn.mode, btn.should_engage(), btn);
+        wake_timer.reset();
       }
       // Serial.print(btn.pin);
       // Serial.print(": ");
