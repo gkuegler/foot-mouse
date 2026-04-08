@@ -60,6 +60,7 @@ HIDCompat::MouseTinyUsbShim Mouse;
 #error "No HID implementation configured for this board."
 #endif
 
+// TODO: fix include orders
 #include "button.h"
 #include "constants.h"
 #include "serial-msg-parsing.h"
@@ -110,7 +111,7 @@ std::array<byte, MAX_PAYLOAD_SIZE> g_payload_buf;
 
 // Send meaningless keyboard input (e.g. F22 press) periodically to keep
 // computer awake.
-auto wake_timer = Timer();
+auto keep_awake_timer = Timer();
 
 /**
  * Copy the contents of source null terminated
@@ -302,11 +303,11 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
     } break;
 
     case CMD_KEEP_AWAKE_ENABLE:
-      wake_timer.enable();
+      keep_awake_timer.enable();
       break;
 
     case CMD_KEEP_AWAKE_DISABLE:
-      wake_timer.disable();
+      keep_awake_timer.disable();
       break;
 
     default:
@@ -466,14 +467,14 @@ setup()
   }
 #endif
 
-  wake_timer.start(KEEP_AWAKE_PERIOD_S * 1000);
+  keep_awake_timer.start(KEEP_AWAKE_PERIOD_S * 1000);
   if (!KEEP_AWAKE_DEFAULT_STATE) {
-    wake_timer.disable();
+    keep_awake_timer.disable();
   }
 
 #if defined(ARDUINO_ARCH_NRF52)
   // Keep awake does not work on tinyusbshim on nrf boards.
-  wake_timer.disable();
+  keep_awake_timer.disable();
 #endif
 }
 
@@ -526,7 +527,7 @@ loop()
     for (auto& btn : buttons) {
       if (btn.debounce(digitalRead(btn.pin), now)) {
         send_input(btn.mode, btn.should_engage(), btn);
-        wake_timer.reset();
+        keep_awake_timer.reset();
       }
       // Serial.print(btn.pin);
       // Serial.print(": ");
@@ -536,9 +537,9 @@ loop()
     }
   }
 
-  if (wake_timer.update()) {
+  if (keep_awake_timer.update()) {
     Keyboard.press(KEEP_AWAKE_KEY);
-    delay(5);
+    delay(10);
     Keyboard.release(KEEP_AWAKE_KEY);
   }
 
