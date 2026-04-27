@@ -1,2 +1,5 @@
 *.pyc
 .vscode/
+
+# Don't include API keys etc.
+arduino_secrets.h

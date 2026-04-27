@@ -9,7 +9,6 @@
 // at start up and leave all other pins open. This can be accomplished by
 // inserting a TS male jack into the second 3.5mm jack.
 #define BITLOCKER_RECOVERY_MODE_FOR_NRF
-#define BITLOCKER_REVOCERY_KEY "put secret here"
 #endif
 
 #define GLITCH_SAMPLE_CNT 5
@@ -25,6 +24,7 @@
 
 // Yahmaha foot pedal behaviors.
 #define DIGITAL_READ_DISCONNECTED_PEDAL 1
+#define DIGITAL_READ_CONNECTED_PEDAL    0
 #define DIGITAL_READ_PEDAL_DOWN         1
 #define DIGITAL_READ_PEDAL_UP           0
 

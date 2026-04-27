@@ -61,6 +61,7 @@ HIDCompat::MouseTinyUsbShim Mouse;
 #endif
 
 // TODO: fix include orders
+#include "arduino_secrets.h"
 #include "button.h"
 #include "constants.h"
 #include "serial-msg-parsing.h"
@@ -93,13 +94,14 @@ std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
 
 #elif defined(BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS)
 std::array<Button, 4> buttons{
-  Button(D6, MODE_MOUSE_LEFT, INVERTED),            // J1 Tip
-  Button(D7, MODE_MOUSE_MIDDLE, NORMAL),            // J2 Ring
-  Button(D10, MODE_MOUSE_RIGHT_QUICK_FIRE, NORMAL), // J2 Tip
-  Button(D3, MODE_ORBIT, NORMAL)                    // J1 Ring
+  Button(D6, MODE_MOUSE_LEFT, INVERTED),  // J1 Tip
+  Button(D7, MODE_MOUSE_MIDDLE, NORMAL),  // J2 Ring
+  Button(D10, MODE_MOUSE_MIDDLE, NORMAL), // J2 Tip
+  Button(D3, MODE_ORBIT, NORMAL)          // J1 Ring
 };
 
-#define SPECIAL_BITLOCKER_PIN_LOW D7
+// Pins are pulled high. Tie 2R to gnd to engage.
+const std::array<int, sizeof(buttons)> g_special_pin_config{ 1, 0, 1, 1 };
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -423,33 +425,13 @@ void
 setup()
 {
   Serial.begin(115200);
-
-  // Note both Mouse.begin() and Keyboard.begin() are empty methods, but it's
-  // important to call them in case the implementation changes. '.begin()' is
-  // arduino standard.
   Keyboard.begin();
   Mouse.begin();
-
-#if defined(BITLOCKER_RECOVERY_MODE_FOR_NRF)
-  bool send_bitlocker_key_keystrokes = true;
-  int pin_read = 0;
-#endif
 
   // Set up input pins.
   // I use external pull-up resistors, they are more stable.
   for (auto& btn : buttons) {
     pinMode(btn.pin, INPUT);
-
-#if defined(BITLOCKER_RECOVERY_MODE_FOR_NRF)
-    pin_read = digitalRead(btn.pin);
-
-    if (btn.pin != SPECIAL_BITLOCKER_PIN_LOW && pin_read == 0) {
-      send_bitlocker_key_keystrokes = false;
-    } else if (btn.pin == SPECIAL_BITLOCKER_PIN_LOW && pin_read == 1) {
-      send_bitlocker_key_keystrokes = false;
-    }
-
-#endif
 
 // Disable a button if no pedal is plugged into the jack.
 // Alternatively, hold a pedal down on boot to disable that pedal.
@@ -460,10 +442,20 @@ setup()
 #endif
   }
 
+// Ensure all pins match the bitlocker config.
 #if defined(BITLOCKER_RECOVERY_MODE_FOR_NRF)
+  bool send_bitlocker_key_keystrokes = true;
+  for (size_t i = 0; i < buttons.size(); i++) {
+    auto config = g_special_pin_config[i];
+    auto btn = buttons[i];
+    if (digitalRead(btn.pin) != config) {
+      send_bitlocker_key_keystrokes = false;
+    }
+  }
+
   if (send_bitlocker_key_keystrokes) {
     delay(2000);
-    Keyboard.print(BITLOCKER_RECOVERY_KEY);
+    Keyboard.print(SECRET_BITLOCKER_RECOVERY_KEY);
   }
 #endif
 
