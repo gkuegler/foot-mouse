@@ -11,10 +11,10 @@
 #define BITLOCKER_RECOVERY_MODE_FOR_NRF
 #endif
 
-#define GLITCH_SAMPLE_CNT 5
-#define POLL_PERIOD_US    20
-#define DEBOUNCE_RESET    20000 // microseconds
-#define MAX_PAYLOAD_SIZE  512
+#define GLITCH_SAMPLE_CNT  5
+#define POLL_PERIOD_US     20
+#define DEBOUNCE_RESET     20000 // microseconds
+#define STRING_BUFFER_SIZE 512
 
 #define KEEP_AWAKE_PERIOD_S      120
 #define KEEP_AWAKE_KEY           KEY_F22

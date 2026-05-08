@@ -29,8 +29,8 @@ struct __attribute__((packed)) CmdPayloadSetKeycombo
   uint16_t keycodes[64];
 };
 
-static_assert(sizeof(CmdPayloadSetButtonMode) < MAX_PAYLOAD_SIZE, "");
-static_assert(sizeof(CmdPayloadSetKeycombo) < MAX_PAYLOAD_SIZE, "");
+static_assert(sizeof(CmdPayloadSetButtonMode) < STRING_BUFFER_SIZE, "");
+static_assert(sizeof(CmdPayloadSetKeycombo) < STRING_BUFFER_SIZE, "");
 
 /*
  * Get the next byte with a timeout built in.

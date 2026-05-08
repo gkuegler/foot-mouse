@@ -109,7 +109,7 @@ const std::array<int, sizeof(buttons)> g_special_pin_config{ 1, 0, 1, 1 };
 ////////////////////////////////////////////////////////////////
 
 // Serial COM port command buffer.
-std::array<byte, MAX_PAYLOAD_SIZE> g_payload_buf;
+std::array<byte, STRING_BUFFER_SIZE> g_payload_buf;
 
 // Send meaningless keyboard input (e.g. F22 press) periodically to keep
 // computer awake.
@@ -126,7 +126,7 @@ string_copy(char* destination, const char* source)
 {
   for (int i = 0;; i++) {
     // Protect against buffer overruns.
-    if (i >= MAX_PAYLOAD_SIZE) {
+    if (i >= STRING_BUFFER_SIZE) {
       return -1;
     }
 
@@ -168,7 +168,7 @@ void
 set_vault(const char* data)
 {
   // Protect against buffer overruns.
-  for (int i = 0; i < MAX_PAYLOAD_SIZE; i++) {
+  for (int i = 0; i < STRING_BUFFER_SIZE; i++) {
     byte c = data[i];
     EEPROM.update(i, c);
     if ('\0' == c) {
@@ -185,7 +185,7 @@ set_vault(const char* data)
 void
 type_vault()
 {
-  for (int i = 0; i < MAX_PAYLOAD_SIZE; i++) {
+  for (int i = 0; i < STRING_BUFFER_SIZE; i++) {
     auto c = (char)EEPROM.read(i);
     if ('\0' != c) {
       Keyboard.write(c);
@@ -200,7 +200,7 @@ type_vault()
 void
 type_string(const char* text)
 {
-  for (int i = 0; i < MAX_PAYLOAD_SIZE; i++) {
+  for (int i = 0; i < STRING_BUFFER_SIZE; i++) {
     const char c = text[i];
     if ('\0' != c) {
       Keyboard.write(c);
