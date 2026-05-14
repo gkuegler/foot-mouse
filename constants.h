@@ -11,9 +11,9 @@
 #define BITLOCKER_RECOVERY_MODE_FOR_NRF
 #endif
 
-#define GLITCH_SAMPLE_CNT  5
+#define GLITCH_SAMPLE_CNT  10
 #define POLL_PERIOD_US     20
-#define DEBOUNCE_RESET     20000 // microseconds
+#define DEBOUNCE_RESET     (20 * 1000) // microseconds
 #define STRING_BUFFER_SIZE 512
 
 #define KEEP_AWAKE_PERIOD_S      120
@@ -28,9 +28,10 @@
 #define DIGITAL_READ_PEDAL_DOWN         1
 #define DIGITAL_READ_PEDAL_UP           0
 
-#define NORMAL   false // press foot down to engage action
-#define INVERTED true  // lift foot up to engage engage action
-
+#define NORMAL     false // press foot down to engage action
+#define INVERTED   true  // lift foot up to engage engage action
+#define DOWN_CLICK 0     // press foot down to engage action
+#define UP_CLICK   1     // lift foot up to engage engage action
 /**
  * PEDAL MODE DESCRIPTIONS:
  * MODE_MOUSE_LEFT: left mouse button

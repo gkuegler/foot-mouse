@@ -88,19 +88,21 @@ HIDCompat::MouseTinyUsbShim Mouse;
 #define BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS
 
 #if defined(BOARD_TEENSY_4_3_BUTTONS)
-std::array<Button, 3> buttons{ Button(4, MODE_MOUSE_LEFT, INVERTED),
-                               Button(5, MODE_MOUSE_MIDDLE, NORMAL),
-                               Button(6, MODE_MOUSE_RIGHT_QUICK_FIRE, NORMAL) };
+std::array<Button, 3> buttons{
+  Button(4, MODE_MOUSE_LEFT, UP_CLICK),
+  Button(5, MODE_MOUSE_MIDDLE, DOWN_CLICK),
+  Button(6, MODE_MOUSE_RIGHT_QUICK_FIRE, DOWN_CLICK)
+};
 
 #elif defined(BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS)
 std::array<Button, 4> buttons{
-  Button(D6, MODE_MOUSE_LEFT, INVERTED),  // J1 Tip
-  Button(D7, MODE_MOUSE_MIDDLE, NORMAL),  // J2 Ring
-  Button(D10, MODE_MOUSE_MIDDLE, NORMAL), // J2 Tip
-  Button(D3, MODE_ORBIT, NORMAL)          // J1 Ring
+  Button(D6, MODE_MOUSE_LEFT, UP_CLICK),                // J1 Tip
+  Button(D7, MODE_MOUSE_MIDDLE, DOWN_CLICK),            // J2 Ring
+  Button(D10, MODE_MOUSE_RIGHT_QUICK_FIRE, DOWN_CLICK), // J2 Tip
+  Button(D3, MODE_ORBIT, DOWN_CLICK)                    // J1 Ring
 };
 
-// Pins are pulled high. Tie 2R to gnd to engage.
+// Pins are pulled high. Tie J2R to gnd to engage.
 const std::array<int, sizeof(buttons)> g_special_pin_config{ 1, 0, 1, 1 };
 #endif
 
@@ -320,6 +322,16 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
 void
 send_input(int mode, bool engage, Button& btn)
 {
+  static auto prev = millis();
+  // TODO: Potentially make a small toggle-able option to convert quick mouse-up
+  // and mouse-down events as a mouseclick? change dwell time? Hold the sending
+  // of mouse down untill a set duration, then if a mouse-up happend within that
+  // duration, send a standard quick mouse-up/mouse-down? I'm not sure how
+  // useful this would be... Seems like 150ms is my min time I can reasonably
+  // click a mouse button with my foot. I can get below 100ms but for normal
+  // clicks 150ms is usable
+  // Unfortunately, a 150ms delay on the mouse down button is unnacceptable.
+  // It's impossible to highlight text.
   switch (mode) {
     // For left, right, and middle button modes, the mode enum
     // corresponds to the Mouse Library button constant value.
@@ -327,9 +339,16 @@ send_input(int mode, bool engage, Button& btn)
     case MODE_MOUSE_MIDDLE:
     case MODE_MOUSE_RIGHT:
       if (engage) {
+        // prev = millis();
+        // delay(150);
         Mouse.press(mode);
       } else {
         Mouse.release(mode);
+        // if ((millis() - prev) > 150) {
+        //   Keyboard.press(MODIFIERKEY_CTRL);
+        //   delay(10);
+        //   Keyboard.release(MODIFIERKEY_CTRL);
+        // }
       }
       break;
 
