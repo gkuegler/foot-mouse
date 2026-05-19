@@ -46,6 +46,7 @@ CMD_TYPE_SAVED_ASCII_STR = 11
 CMD_RETURN_CRC = 12
 CMD_KEEP_AWAKE_ENABLE = 13
 CMD_KEEP_AWAKE_DISABLE = 14
+CMD_LOCK_PC = 15
 
 
 def convert_to_zstr_bytes(string: str):
@@ -243,6 +244,8 @@ if __name__ == "__main__":
     # TESTING = True
 
     # print_available_serial_ports()
+
+    # send_cmd_to_foot_pedal(15)
     # echo_test()
     # type_char("hello\n")
     # set_stored_string("storedstringtest\n")

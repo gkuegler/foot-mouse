@@ -20,6 +20,7 @@ public:
   void enable();
   void reset();
   void restart();
+  bool is_enabled();
 };
 
 void
@@ -67,4 +68,10 @@ void
 Timer::disable()
 {
   enabled = false;
+}
+
+bool
+Timer::is_enabled()
+{
+  return enabled;
 }

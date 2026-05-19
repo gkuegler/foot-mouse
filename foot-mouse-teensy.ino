@@ -117,6 +117,10 @@ std::array<byte, STRING_BUFFER_SIZE> g_payload_buf;
 // computer awake.
 auto keep_awake_timer = Timer();
 
+// Flag to set when CMD is received to lock pc.
+// Used to re-enable keep awake.
+bool reenable_keep_awake_on_pedal = false;
+
 /**
  * Copy the contents of source null terminated
  * string into destination.
@@ -314,6 +318,14 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
       keep_awake_timer.disable();
       break;
 
+    case CMD_LOCK_PC:
+      reenable_keep_awake_on_pedal = keep_awake_timer.is_enabled();
+      keep_awake_timer.disable();
+      Keyboard.press(MODIFIERKEY_LEFT_GUI);
+      Keyboard.press(KEY_L);
+      delay(10);
+      Keyboard.release(KEY_L);
+      Keyboard.release(MODIFIERKEY_LEFT_GUI);
     default:
       break;
   }
@@ -539,6 +551,13 @@ loop()
       if (btn.debounce(digitalRead(btn.pin), now)) {
         send_input(btn.mode, btn.should_engage(), btn);
         keep_awake_timer.reset();
+
+        // Re-enable keep awake when pressing any pedal when this device was
+        // used to lock pc.
+        if (reenable_keep_awake_on_pedal) {
+          keep_awake_timer.enable();
+          reenable_keep_awake_on_pedal = false;
+        }
       }
       // Serial.print(btn.pin);
       // Serial.print(": ");
