@@ -10,7 +10,7 @@ struct __attribute__((packed)) SerialMsgHeader
   uint32_t length = 0;
   uint32_t crc32 = 0xDEADBEEF;
   // TODO: cmd is unprotected by crc with this topology.
-  uint32_t cmd = 999999;
+  uint32_t cmd = 0xDEADBEEF;
 };
 
 struct __attribute__((packed)) CmdPayloadSetButtonMode
@@ -24,9 +24,9 @@ struct __attribute__((packed)) CmdPayloadSetButtonMode
 struct __attribute__((packed)) CmdPayloadSetKeycombo
 {
   uint8_t pedal_index;
-  uint8_t inverted;
+  uint8_t trigger_direction;
   uint8_t nKeycodes;
-  uint16_t keycodes[64];
+  uint16_t keycodes[MAX_COMBO_KEYCODE_COUNT];
 };
 
 static_assert(sizeof(CmdPayloadSetButtonMode) < STRING_BUFFER_SIZE, "");
@@ -59,11 +59,11 @@ read_next_byte()
  */
 bool
 validate_frame_and_get_payload(SerialMsgHeader* header,
-                               unsigned char* buf,
+                               uint8_t* buf,
                                size_t bufsize)
 {
-  constexpr uint32_t MSOF = 0xFFFFFFFFUL;
-  byte index = 0;
+  constexpr uint32_t MYSOF = 0xFFFFFFFF;
+  size_t index = 0;
 
   // Clear the input buffer.
   memset(buf, 0, bufsize);
@@ -77,7 +77,7 @@ validate_frame_and_get_payload(SerialMsgHeader* header,
     auto rb = read_next_byte();
     if (rb == -1) {
       Serial.printf("%d: Serial read was -1.\n", i);
-      return NULL;
+      return false;
     }
     reinterpret_cast<unsigned char*>(header)[i] = (unsigned char)rb;
   }
@@ -88,22 +88,22 @@ validate_frame_and_get_payload(SerialMsgHeader* header,
   Serial.printf("cmd: %d\n", header->cmd);
 
   // Check SOF
-  if (MSOF != header->sof) {
+  if (MYSOF != header->sof) {
     Serial.print("No start-of-frame found.\n");
-    return NULL;
+    return false;
   }
 
   // Load payload into buf.
   while (index < header->length) {
     if (index >= bufsize) {
       Serial.print("Message payload size exceded buffer.\n");
-      return NULL;
+      return false;
     }
 
     auto rb = read_next_byte();
     if (rb == -1) {
       Serial.printf("%d: Serial read was -1.\n", index);
-      return NULL;
+      return false;
     }
 
     buf[index++] = (unsigned char)rb;
@@ -115,17 +115,17 @@ validate_frame_and_get_payload(SerialMsgHeader* header,
                   "expected '%d' bytes.",
                   index,
                   header->length);
-    return NULL;
+    return false;
   }
 
-  // CRC check.
-  if (crc::crc32(buf, header->length) != header->crc32) {
-    Serial.print("CRC-32 check failed.\n");
-    // TODO: need to return crc and other stuff for debug purposes.
-    // return NULL;
-  }
+  // FUTURE: Implement CRC check possibly? when using structured messages mixed
+  // with logs?
+  // CRC check. if (crc::crc32(buf, header->length) != header->crc32)
+  // { Serial.print("CRC-32 check failed.\n");
+  // return false;
+  // }
 
-  return buf;
+  return true;
 }
 
 #endif // FOOTMOUSE_SERIAL_MSG_PARSING

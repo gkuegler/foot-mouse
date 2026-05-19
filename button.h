@@ -8,7 +8,7 @@ class Button
 public:
   int pin;
   int mode;
-  int inverted;
+  int trigger_direction = DOWN_CLICK;
   bool enabled = true;
 
   size_t nKeycodes;
@@ -23,19 +23,19 @@ public:
   unsigned long last_change_time = 0;
 
   Button() = delete;
-  Button(int pin, int mode, int inverted)
+  Button(int pin, int mode, int trigger_direction)
     : pin(pin)
     , mode(mode)
-    , inverted(inverted)
+    , trigger_direction(trigger_direction)
     , default_mode(mode)
-    , default_inverted(inverted)
+    , default_inverted(trigger_direction)
   {
   }
 
   void set_mode(int mode_, int inverted_)
   {
     mode = mode_;
-    inverted = inverted_;
+    trigger_direction = inverted_;
   }
 
   void reset_to_defaults()
@@ -52,7 +52,7 @@ public:
         break;
     }
     mode = default_mode;
-    inverted = default_inverted;
+    trigger_direction = default_inverted;
   }
 
   /**
@@ -60,8 +60,8 @@ public:
    */
   bool should_engage()
   {
-    return (inverted && (state == DIGITAL_READ_PEDAL_UP)) ||
-           (!inverted && (state == DIGITAL_READ_PEDAL_DOWN));
+    return (trigger_direction && (state == DIGITAL_READ_PEDAL_UP)) ||
+           (!trigger_direction && (state == DIGITAL_READ_PEDAL_DOWN));
   }
 
   /**
@@ -91,7 +91,7 @@ public:
     glitch_buf = mask & ((glitch_buf << 1) | digital_read);
 
     // The debounce reset is used to acheive longer debounce times on the pedal
-    // reset.
+    // reset than can be represented in a sample buffer.
     if ((now - last_change_time) < DEBOUNCE_RESET) {
       return false;
     }

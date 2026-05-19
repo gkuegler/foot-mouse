@@ -71,10 +71,9 @@ HIDCompat::MouseTinyUsbShim Mouse;
 // #include "test-keycodes-serial-api.h"
 
 // FUTURE: Since pedals are detected at startup, I might want to provide a map
-// to determine what preset config the pedals are in depending on which are
-// connected. This allows me to have say:
-// Sheet music page turning mode if 1 & 3 connected.
-// Or some other preset if only 2 & 3 are connected.
+// to determine what preset config the pedals are in depending on which pedals
+// are connected. This allows me to have say: Sheet music page turning mode if 1
+// & 3 connected. Or some other preset if only 2 & 3 are connected.
 
 ////////////////////////////////////////////////////////////////
 //                      BOARD SELECTION                       //
@@ -111,7 +110,7 @@ const std::array<int, sizeof(buttons)> g_special_pin_config{ 1, 0, 1, 1 };
 ////////////////////////////////////////////////////////////////
 
 // Serial COM port command buffer.
-std::array<byte, STRING_BUFFER_SIZE> g_payload_buf;
+std::array<uint8_t, STRING_BUFFER_SIZE> g_payload_buf;
 
 // Send meaningless keyboard input (e.g. F22 press) periodically to keep
 // computer awake.
@@ -234,7 +233,7 @@ fire_macro(const uint16_t* keycodes, const size_t count)
  * Decode and handle the message.
  */
 void
-handle_message(SerialMsgHeader* header, unsigned char* payload)
+handle_message(SerialMsgHeader* header, uint8_t* payload)
 {
   switch (header->cmd) {
     // Return an identifier code to confirm this is the board I
@@ -301,7 +300,7 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
         btn.keycodes.data(), mx->keycodes, mx->nKeycodes * sizeof(uint16_t));
       btn.nKeycodes = mx->nKeycodes;
       btn.mode = MODE_KEYCOMBO;
-      btn.inverted = mx->inverted;
+      btn.trigger_direction = mx->trigger_direction;
 
     } break;
 
@@ -334,7 +333,6 @@ handle_message(SerialMsgHeader* header, unsigned char* payload)
 void
 send_input(int mode, bool engage, Button& btn)
 {
-  static auto prev = millis();
   // TODO: Potentially make a small toggle-able option to convert quick mouse-up
   // and mouse-down events as a mouseclick? change dwell time? Hold the sending
   // of mouse down untill a set duration, then if a mouse-up happend within that
@@ -344,6 +342,7 @@ send_input(int mode, bool engage, Button& btn)
   // clicks 150ms is usable
   // Unfortunately, a 150ms delay on the mouse down button is unnacceptable.
   // It's impossible to highlight text.
+  // static auto prev = millis();
   switch (mode) {
     // For left, right, and middle button modes, the mode enum
     // corresponds to the Mouse Library button constant value.

@@ -8,30 +8,39 @@
 // will resume after. Short the `R` terminal to ground on the 2nd 3.5mm TRS jack
 // at start up and leave all other pins open. This can be accomplished by
 // inserting a TS male jack into the second 3.5mm jack.
-#define BITLOCKER_RECOVERY_MODE_FOR_NRF
+#define ENABLE_BITLOCKER_RECOVERY_MODE_FOR_NRF
 #endif
+
+#define DEVICE_ID_RESPONSE "footmouse\n"
 
 #define GLITCH_SAMPLE_CNT  10
 #define POLL_PERIOD_US     20
 #define DEBOUNCE_RESET     (20 * 1000) // microseconds
 #define STRING_BUFFER_SIZE 512
 
-#define KEEP_AWAKE_PERIOD_S      120
+#define MAX_COMBO_KEYCODE_COUNT 64
+
+#define KEEP_AWAKE_PERIOD_S      180
 #define KEEP_AWAKE_KEY           KEY_F22
 #define KEEP_AWAKE_DEFAULT_STATE true
 
-#define DEVICE_ID_RESPONSE "footmouse\n"
-
-// Yahmaha foot pedal behaviors.
+// Yahmaha FC5 foot pedal behaviors:
+// Pedal gpio pins are pulled high and FC5 pedal contacts are
+// normally closed. Contacts open, when pedal is pressed.
 #define DIGITAL_READ_DISCONNECTED_PEDAL 1
 #define DIGITAL_READ_CONNECTED_PEDAL    0
 #define DIGITAL_READ_PEDAL_DOWN         1
 #define DIGITAL_READ_PEDAL_UP           0
 
-#define NORMAL     false // press foot down to engage action
-#define INVERTED   true  // lift foot up to engage engage action
-#define DOWN_CLICK 0     // press foot down to engage action
-#define UP_CLICK   1     // lift foot up to engage engage action
+#define NORMAL   false // press foot down to engage action
+#define INVERTED true  // lift foot up to engage engage action
+
+enum TriggerDirection
+{
+  DOWN_CLICK = 0,
+  UP_CLICK = 1
+};
+
 /**
  * PEDAL MODE DESCRIPTIONS:
  * MODE_MOUSE_LEFT: left mouse button
