@@ -40,6 +40,7 @@ resistor
 #define BOARD_TEENSY_4_3_BUTTONS
 // Alternate definers for Teensyduino:  || defined(ARDUINO_TEENSY40) ||
 // defined(__IMXRT1062__) Note that NRF and ESP boards do not have EEPROM.
+#include "persistent_storage.h"
 #include <EEPROM.h>
 #include <Keyboard.h>
 #include <Mouse.h>
@@ -108,6 +109,9 @@ const std::array<int, sizeof(buttons)> g_special_pin_config{ 1, 0, 1, 1 };
 ////////////////////////////////////////////////////////////////
 //                     GLOBAL VARIABLES                       //
 ////////////////////////////////////////////////////////////////
+
+// Holds persistent settings.
+MemoryView<std::size(buttons)> memview;
 
 // Serial COM port command buffer.
 std::array<uint8_t, STRING_BUFFER_SIZE> g_payload_buf;
@@ -283,6 +287,8 @@ handle_message(SerialMsgHeader* header, uint8_t* payload)
 
       if (valid_button_parameters(mx->pedal_index, mx->mode, mx->inversion)) {
         buttons[mx->pedal_index].set_mode(mx->mode, mx->inversion);
+        memview.buttons[mx->pedal_index] = { mx->mode, mx->inversion };
+        update_memory(reinterpret_cast<uint8_t*>(&memview), sizeof(memview));
       }
       break;
     }
@@ -458,9 +464,14 @@ setup()
   Keyboard.begin();
   Mouse.begin();
 
+#ifdef LOAD_BUTTONS_FROM_MEM
+  load_memory(reinterpret_cast<uint8_t*>(&memview), sizeof(memview));
+#endif
+
   // Set up input pins.
-  // I use external pull-up resistors, they are more stable.
+  int idx = 0;
   for (auto& btn : buttons) {
+    // I use external pull-up resistors, they are more stable.
     pinMode(btn.pin, INPUT);
 
 // Disable a button if no pedal is plugged into the jack.
@@ -469,6 +480,12 @@ setup()
     if (digitalRead(btn.pin) == DIGITAL_READ_DISCONNECTED_PEDAL) {
       btn.enabled = false;
     }
+#endif
+
+// Load value from memory.
+#ifdef LOAD_BUTTONS_FROM_MEM
+    auto btn_config = memview.buttons[idx++];
+    btn.set_mode(btn_config.mode, btn_config.trig_direction);
 #endif
   }
 
@@ -495,7 +512,7 @@ setup()
   }
 
 #if defined(ARDUINO_ARCH_NRF52)
-  // Keep awake does not work on tinyusbshim on nrf boards.
+  // BUG: Keep awake does not work on tinyusbshim on nrf boards.
   keep_awake_timer.disable();
 #endif
 }
