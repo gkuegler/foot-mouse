@@ -34,9 +34,10 @@ resistor
 
 #include <array>
 
+#include "boards.h"
+
 /* Need to install 'Teensy (for Arduino ...) library from Paul. */
-#if defined(TEENSYDUINO)
-#define TEENSY
+#if defined(BOARD_TEENSY4)
 #define BOARD_TEENSY_4_3_BUTTONS
 // Alternate definers for Teensyduino:  || defined(ARDUINO_TEENSY40) ||
 // defined(__IMXRT1062__) Note that NRF and ESP boards do not have EEPROM.
@@ -77,15 +78,9 @@ HIDCompat::MouseTinyUsbShim Mouse;
 // & 3 connected. Or some other preset if only 2 & 3 are connected.
 
 ////////////////////////////////////////////////////////////////
-//                      BOARD SELECTION                       //
+//                      DEFAULT BUTTONS                       //
 //         Select the board and their default Buttons.        //
 ////////////////////////////////////////////////////////////////
-
-// Classic black plastic box with (3) 1/4 jacks.
-// #define FOOTMOUSE_3_BUTTONS
-
-// Small board with dual stereo jacks.
-#define BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS
 
 #if defined(BOARD_TEENSY_4_3_BUTTONS)
 std::array<Button, 3> buttons{
@@ -169,43 +164,6 @@ valid_button_parameters(const int pedal_index,
   return true;
 }
 
-#if defined(TEENSY)
-/**
- * Save a string of characters to persistent storage.
- */
-void
-set_vault(const char* data)
-{
-  // Protect against buffer overruns.
-  for (int i = 0; i < STRING_BUFFER_SIZE; i++) {
-    byte c = data[i];
-    EEPROM.update(i, c);
-    if ('\0' == c) {
-      break;
-    }
-  }
-  return;
-}
-
-/**
- * Type out the contents of persistent storage
- * with keystrokes.
- */
-void
-type_vault()
-{
-  for (int i = 0; i < STRING_BUFFER_SIZE; i++) {
-    auto c = (char)EEPROM.read(i);
-    if ('\0' != c) {
-      Keyboard.write(c);
-    } else {
-      break;
-    }
-  }
-}
-
-#endif
-
 void
 type_string(const char* text)
 {
@@ -250,6 +208,7 @@ handle_message(SerialMsgHeader* header, uint8_t* payload)
     case CMD_RESET_BUTTONS_TO_DEFAULT:
       // Lets go of all keys currently pressed. See Keyboard.press().
       Keyboard.releaseAll();
+      invalidate_memory();
       for (auto& b : buttons) {
         b.reset_to_defaults();
       }
@@ -259,20 +218,6 @@ handle_message(SerialMsgHeader* header, uint8_t* payload)
     case CMD_SEND_ASCII_KEYS:
       type_string((const char*)payload);
       break;
-
-#if defined(TEENSY)
-
-    // Load the null terminated c-string received into
-    // the onboard EEPROM.
-    case CMD_SET_VAULT:
-      set_vault((const char*)payload);
-      break;
-
-    case CMD_KEYBOARD_TYPE_VAULT:
-      type_vault();
-      break;
-
-#endif
 
     // Echo back the message payload over serial.
     // Used for testing.
@@ -464,17 +409,21 @@ setup()
   Keyboard.begin();
   Mouse.begin();
 
+  // invalidate_memory();
+
 #ifdef LOAD_BUTTONS_FROM_MEM
-  load_memory(reinterpret_cast<uint8_t*>(&memview), sizeof(memview));
+  if (is_memory_initialized()) {
+    load_memory(reinterpret_cast<uint8_t*>(&memview), sizeof(memview));
+  }
+  int idx = 0;
 #endif
 
   // Set up input pins.
-  int idx = 0;
   for (auto& btn : buttons) {
     // I use external pull-up resistors, they are more stable.
     pinMode(btn.pin, INPUT);
 
-// Disable a button if no pedal is plugged into the jack.
+// Disable a butRton if no pedal is plugged into the jack.
 // Alternatively, hold a pedal down on boot to disable that pedal.
 #ifdef AUTO_DISABLE_BTN_ON_START
     if (digitalRead(btn.pin) == DIGITAL_READ_DISCONNECTED_PEDAL) {
@@ -484,8 +433,12 @@ setup()
 
 // Load value from memory.
 #ifdef LOAD_BUTTONS_FROM_MEM
-    auto btn_config = memview.buttons[idx++];
-    btn.set_mode(btn_config.mode, btn_config.trig_direction);
+    if (is_memory_initialized()) {
+      auto btn_config = memview.buttons[idx++];
+      if (btn_config.mode > 0) {
+        btn.set_mode(btn_config.mode, btn_config.trig_direction);
+      }
+    }
 #endif
   }
 

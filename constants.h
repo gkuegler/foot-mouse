@@ -1,7 +1,7 @@
 #pragma once
 
 #define AUTO_DISABLE_BTN_ON_START
-// #define LOAD_BUTTONS_FROM_MEM
+#define LOAD_BUTTONS_FROM_MEM
 // #define RESET_MEM_ON_STARTUP_ONCE
 
 #if defined(ARDUINO_ARCH_NRF52)

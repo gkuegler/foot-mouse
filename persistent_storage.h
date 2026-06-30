@@ -6,8 +6,8 @@
 
 #include "constants.h"
 
-// constexpr int flashed_index = 0;
-constexpr int starting_index = 0;
+constexpr int flashed_index = 0;
+constexpr int starting_index = 1;
 
 struct MemButton
 {
@@ -24,28 +24,30 @@ struct MemoryView
 bool
 is_memory_initialized()
 {
-  return EEPROM[flashed_index];
+  return (0x01 == EEPROM[flashed_index]);
+}
+
+void
+invalidate_memory()
+{
+  EEPROM[flashed_index] = 0x00;
 }
 
 void
 load_memory(uint8_t* buf, size_t size)
 {
-  // Don't load settings if mem isn't initialized.
-  // if (EEPROM[flashed_index] == 0) {
-  //   EEPROM.write(0, 1);
-  //   return;
-  // }
-
   for (size_t i = 0; i < size; i++) {
-    buf[i] = EEPROM[i];
+    buf[i] = EEPROM[starting_index + i];
   }
 }
 
 void
 update_memory(uint8_t* buf, size_t size)
 {
+  EEPROM.update(flashed_index, 0x01);
+
   for (size_t i = 0; i < size; i++) {
-    EEPROM.update(i, buf[i]);
+    EEPROM.update(starting_index + i, buf[i]);
   }
 }
 
