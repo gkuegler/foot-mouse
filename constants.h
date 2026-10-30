@@ -22,7 +22,7 @@
 
 #define MAX_COMBO_KEYCODE_COUNT 64
 
-#define KEEP_AWAKE_PERIOD_S      180
+#define KEEP_AWAKE_PERIOD_S      293 // largest prime under 300
 #define KEEP_AWAKE_KEY           KEY_F22
 #define KEEP_AWAKE_DEFAULT_STATE true
 

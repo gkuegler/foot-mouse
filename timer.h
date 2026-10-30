@@ -1,5 +1,6 @@
 #include <Arduino.h>
 
+namespace my_timer {
 class Timer
 {
 private:
@@ -74,4 +75,5 @@ bool
 Timer::is_enabled()
 {
   return enabled;
+}
 }

@@ -292,7 +292,7 @@ KeyboardTinyUsbShim::press(uint16_t k)
 bool
 KeyboardTinyUsbShim::release(uint16_t k)
 {
-  if (k & 0xE000) {
+  if ((k & 0xFF00) == 0xE000) {
     _mod &= ~(uint8_t)(k & 0xFF);
     // Serial.println("treat common modifiers");
   } else {

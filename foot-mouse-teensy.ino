@@ -70,7 +70,6 @@ HIDCompat::MouseTinyUsbShim Mouse;
 #include "serial-msg-parsing.h"
 #include "timer.h"
 
-
 // Add temporarily to your sketch to see which macros are defined.
 // #include "test-keycodes-serial-api.h"
 
@@ -115,7 +114,7 @@ std::array<uint8_t, STRING_BUFFER_SIZE> g_payload_buf;
 
 // Send meaningless keyboard input (e.g. F22 press) periodically to keep
 // computer awake.
-auto keep_awake_timer = Timer();
+auto keep_awake_timer = my_timer::Timer();
 
 // Flag to set when CMD is received to lock pc.
 // Used to re-enable keep awake.
@@ -458,11 +457,6 @@ setup()
   if (!KEEP_AWAKE_DEFAULT_STATE) {
     keep_awake_timer.disable();
   }
-
-  // #if defined(ARDUINO_ARCH_NRF52)
-  // BUG: Keep awake does not work on tinyusbshim on nrf boards.
-  // keep_awake_timer.disable();
-  // #endif
 }
 
 unsigned long previous_btn_check = 0;
@@ -516,6 +510,7 @@ loop()
         send_input(btn.mode, btn.should_engage(), btn);
         keep_awake_timer.reset();
 
+        // TODO: test reenable keep awake
         // Re-enable keep awake when pressing any pedal when this device was
         // used to lock pc.
         if (reenable_keep_awake_on_pedal) {
