@@ -41,7 +41,7 @@ resistor
 #define BOARD_TEENSY_4_3_BUTTONS
 // Alternate definers for Teensyduino:  || defined(ARDUINO_TEENSY40) ||
 // defined(__IMXRT1062__) Note that NRF and ESP boards do not have EEPROM.
-#include "persistent_storage.h"
+// #include "persistent_storage.h"
 #include <EEPROM.h>
 #include <Keyboard.h>
 #include <Mouse.h>
@@ -66,8 +66,10 @@ HIDCompat::MouseTinyUsbShim Mouse;
 #include "arduino_secrets.h"
 #include "button.h"
 #include "constants.h"
+#include "persistent_storage.h"
 #include "serial-msg-parsing.h"
 #include "timer.h"
+
 
 // Add temporarily to your sketch to see which macros are defined.
 // #include "test-keycodes-serial-api.h"
@@ -106,7 +108,7 @@ const std::array<int, sizeof(buttons)> g_special_pin_config{ 1, 0, 1, 1 };
 ////////////////////////////////////////////////////////////////
 
 // Holds persistent settings.
-MemoryView<std::size(buttons)> memview;
+eeprom::PersistentButtonStorage persistent_storage;
 
 // Serial COM port command buffer.
 std::array<uint8_t, STRING_BUFFER_SIZE> g_payload_buf;
@@ -208,7 +210,7 @@ handle_message(SerialMsgHeader* header, uint8_t* payload)
     case CMD_RESET_BUTTONS_TO_DEFAULT:
       // Lets go of all keys currently pressed. See Keyboard.press().
       Keyboard.releaseAll();
-      invalidate_memory();
+      persistent_storage.invalidate_buttons(buttons.size());
       for (auto& b : buttons) {
         b.reset_to_defaults();
       }
@@ -232,8 +234,11 @@ handle_message(SerialMsgHeader* header, uint8_t* payload)
 
       if (valid_button_parameters(mx->pedal_index, mx->mode, mx->inversion)) {
         buttons[mx->pedal_index].set_mode(mx->mode, mx->inversion);
-        memview.buttons[mx->pedal_index] = { mx->mode, mx->inversion };
-        update_memory(reinterpret_cast<uint8_t*>(&memview), sizeof(memview));
+        // memview.buttons[mx->pedal_index] = { mx->mode, mx->inversion };
+        persistent_storage.set_button(
+          mx->pedal_index, (byte)mx->mode, (byte)mx->inversion);
+        // persistent_storage.update_memory(reinterpret_cast<uint8_t*>(&memview),
+        //                                  sizeof(memview));
       }
       break;
     }
@@ -290,10 +295,11 @@ send_input(int mode, bool engage, Button& btn)
   // duration, send a standard quick mouse-up/mouse-down? I'm not sure how
   // useful this would be... Seems like 150ms is my min time I can reasonably
   // click a mouse button with my foot. I can get below 100ms but for normal
-  // clicks 150ms is usable
-  // Unfortunately, a 150ms delay on the mouse down button is unnacceptable.
-  // It's impossible to highlight text.
-  // static auto prev = millis();
+  // clicks 150ms is usable Unfortunately, a 150ms delay on the mouse down
+  // button is unnacceptable. It's impossible to highlight text. static auto
+  // prev = millis();
+  // TODO: add and alternate mode for right presses where
+  // holding the pedal would change mode temporarily?
   switch (mode) {
     // For left, right, and middle button modes, the mode enum
     // corresponds to the Mouse Library button constant value.
@@ -301,16 +307,9 @@ send_input(int mode, bool engage, Button& btn)
     case MODE_MOUSE_MIDDLE:
     case MODE_MOUSE_RIGHT:
       if (engage) {
-        // prev = millis();
-        // delay(150);
         Mouse.press(mode);
       } else {
         Mouse.release(mode);
-        // if ((millis() - prev) > 150) {
-        //   Keyboard.press(MODIFIERKEY_CTRL);
-        //   delay(10);
-        //   Keyboard.release(MODIFIERKEY_CTRL);
-        // }
       }
       break;
 
@@ -409,12 +408,10 @@ setup()
   Keyboard.begin();
   Mouse.begin();
 
-  // invalidate_memory();
+  // Testing
+  // persistent_storage.invalidate_buttons(buttons.size());
 
 #ifdef LOAD_BUTTONS_FROM_MEM
-  if (is_memory_initialized()) {
-    load_memory(reinterpret_cast<uint8_t*>(&memview), sizeof(memview));
-  }
   int idx = 0;
 #endif
 
@@ -423,7 +420,7 @@ setup()
     // I use external pull-up resistors, they are more stable.
     pinMode(btn.pin, INPUT);
 
-// Disable a butRton if no pedal is plugged into the jack.
+// Disable a button if no pedal is plugged into the jack.
 // Alternatively, hold a pedal down on boot to disable that pedal.
 #ifdef AUTO_DISABLE_BTN_ON_START
     if (digitalRead(btn.pin) == DIGITAL_READ_DISCONNECTED_PEDAL) {
@@ -431,14 +428,12 @@ setup()
     }
 #endif
 
-// Load value from memory.
 #ifdef LOAD_BUTTONS_FROM_MEM
-    if (is_memory_initialized()) {
-      auto btn_config = memview.buttons[idx++];
-      if (btn_config.mode > 0) {
-        btn.set_mode(btn_config.mode, btn_config.trig_direction);
-      }
+    auto cfg = persistent_storage.get_button(idx++);
+    if (cfg.is_initialized && cfg.mode > 0) {
+      btn.set_mode(cfg.mode, cfg.trig_direction);
     }
+
 #endif
   }
 
@@ -464,10 +459,10 @@ setup()
     keep_awake_timer.disable();
   }
 
-#if defined(ARDUINO_ARCH_NRF52)
+  // #if defined(ARDUINO_ARCH_NRF52)
   // BUG: Keep awake does not work on tinyusbshim on nrf boards.
-  keep_awake_timer.disable();
-#endif
+  // keep_awake_timer.disable();
+  // #endif
 }
 
 unsigned long previous_btn_check = 0;
@@ -528,6 +523,7 @@ loop()
           reenable_keep_awake_on_pedal = false;
         }
       }
+
       // Serial.print(btn.pin);
       // Serial.print(": ");
       // Serial.print(btn.enabled);

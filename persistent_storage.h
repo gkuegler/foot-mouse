@@ -2,17 +2,15 @@
 
 #include <Arduino.h>
 
-#include <EEPROM.h>
-
 #include "constants.h"
 
-constexpr int flashed_index = 0;
-constexpr int starting_index = 1;
+namespace eeprom {
 
 struct MemButton
 {
-  uint8_t mode;
-  uint8_t trig_direction;
+  byte mode;
+  byte trig_direction;
+  byte is_initialized;
 } __attribute__((packed));
 
 template<int BUTTON_COUNT>
@@ -21,49 +19,55 @@ struct MemoryView
   std::array<MemButton, BUTTON_COUNT> buttons;
 } __attribute__((packed));
 
-bool
-is_memory_initialized()
-{
-  return (0x01 == EEPROM[flashed_index]);
-}
+#if defined(BOARD_TEENSY4)
+#include <EEPROM.h>
 
-void
-invalidate_memory()
+class PersistentButtonStorage
 {
-  EEPROM[flashed_index] = 0x00;
-}
+  const size_t _mem_loc = 1;
 
-void
-load_memory(uint8_t* buf, size_t size)
-{
-  for (size_t i = 0; i < size; i++) {
-    buf[i] = EEPROM[starting_index + i];
+public:
+  PersistentButtonStorage() {};
+  ~PersistentButtonStorage() {};
+
+  void invalidate_buttons(size_t count)
+  {
+    const size_t member_offset = 2;
+
+    for (size_t i = 0; i < count; i++) {
+      EEPROM.update(_mem_loc + (sizeof(MemButton) * i) + member_offset, 0);
+    }
   }
-}
 
-void
-update_memory(uint8_t* buf, size_t size)
-{
-  EEPROM.update(flashed_index, 0x01);
-
-  for (size_t i = 0; i < size; i++) {
-    EEPROM.update(starting_index + i, buf[i]);
+  MemButton get_button(int idx)
+  {
+    int start = _mem_loc + (sizeof(MemButton) * idx);
+    byte mode = EEPROM.read(start++);
+    byte trig_direction = EEPROM.read(start++);
+    byte is_initialized = EEPROM.read(start++);
+    return MemButton{ mode, trig_direction, is_initialized };
   }
+
+  bool set_button(int idx, byte mode, byte trig_direction)
+  {
+    int start = _mem_loc + (sizeof(MemButton) * idx);
+    EEPROM.update(start++, mode);
+    EEPROM.update(start++, trig_direction);
+    EEPROM.update(start++, 1);
+    return true;
+  }
+};
+
+#elif defined(ARDUINO_ARCH_NRF52) // || defined(NRF52840_XXAA) ||
+class PersistentButtonStorage
+{
+public:
+  PersistentButtonStorage() {};
+  ~PersistentButtonStorage() {};
+
+  void invalidate_buttons(size_t count) {};
+  MemButton get_button(int idx) { return MemButton{ 0, 0, 0 }; }
+  bool set_button(int idx, byte mode, byte trig_direction) { return true; }
+};
+#endif
 }
-
-// MemButton
-// get_button(int idx)
-// {
-//   const int start = starting_index + (sizeof(MemButton) * idx);
-//   int mode = EEPROM.read(start);
-//   int trig_direction = EEPROM.read(start + 1);
-//   return MemButton{ mode, trig_direction };
-// }
-
-// bool
-// set_button(int idx, int mode, int trig_direction)
-// {
-//   const int start = starting_index + (sizeof(MemButton) * idx);
-//   EEPROM.update(start, mode);
-//   EEPROM.update(start + 1, trig_direction);
-// }
