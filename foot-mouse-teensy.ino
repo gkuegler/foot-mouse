@@ -98,7 +98,8 @@ std::array<Button, 4> buttons{
   Button(D3, MODE_ORBIT, DOWN_CLICK)                    // J1 Ring
 };
 
-// Pins are pulled high. Tie J2R to gnd to engage.
+// Pins are pulled high. Tie J2R to gnd to engage. Currently using a TS in the
+// right jack to tie the (R) to the (S).
 const std::array<int, sizeof(buttons)> g_special_pin_config{ 1, 0, 1, 1 };
 #endif
 
@@ -437,18 +438,17 @@ setup()
   }
 
 // Ensure all pins match the bitlocker config.
-#if defined(BITLOCKER_RECOVERY_MODE_FOR_NRF)
-  bool send_bitlocker_key_keystrokes = true;
+#if defined(ENABLE_BITLOCKER_RECOVERY_MODE_FOR_NRF)
+  bool special_pin_config_met = true;
   for (size_t i = 0; i < buttons.size(); i++) {
     auto config = g_special_pin_config[i];
     auto btn = buttons[i];
     if (digitalRead(btn.pin) != config) {
-      send_bitlocker_key_keystrokes = false;
+      special_pin_config_met = false;
     }
   }
 
-  if (send_bitlocker_key_keystrokes) {
-    delay(2000);
+  if (special_pin_config_met) {
     Keyboard.print(SECRET_BITLOCKER_RECOVERY_KEY);
   }
 #endif
