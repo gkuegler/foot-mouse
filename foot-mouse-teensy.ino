@@ -39,8 +39,6 @@ resistor
 /* Need to install 'Teensy (for Arduino ...) library from Paul. */
 #if defined(BOARD_TEENSY4)
 #define BOARD_TEENSY_4_3_BUTTONS
-// Alternate definers for Teensyduino:  || defined(ARDUINO_TEENSY40) ||
-// defined(__IMXRT1062__) Note that NRF and ESP boards do not have EEPROM.
 // #include "persistent_storage.h"
 #include <EEPROM.h>
 #include <Keyboard.h>
@@ -49,9 +47,7 @@ resistor
 /* Need to install 'Seeed nRF52 Boards' library.
 Seeed libraries should include tinyusb support.
 The adafruit tinyusb library does not support the nRF52 core. */
-#elif defined(ARDUINO_ARCH_NRF52) // || defined(NRF52840_XXAA) ||
-                                  // defined(ARDUINO_NRF52840)
-#define NRF52
+#elif defined(BOARD_NRF52)
 #define BOARD_NRF52840_SEEDSTUDIO_4_BUTTONS
 #define COMPILE_TINY_USB_HID_SHIM
 #include "tinyusbhidshim.h"
@@ -115,11 +111,11 @@ std::array<uint8_t, STRING_BUFFER_SIZE> g_payload_buf;
 
 // Send meaningless keyboard input (e.g. F22 press) periodically to keep
 // computer awake.
-auto keep_awake_timer = my_timer::Timer();
+auto keep_awake_timer = grkTimer::Timer();
 
 // Flag to set when CMD is received to lock pc.
 // Used to re-enable keep awake.
-bool reenable_keep_awake_on_pedal = false;
+bool reenable_keep_awake_on_pedal_activity = false;
 
 /**
  * Copy the contents of source null terminated
@@ -274,7 +270,7 @@ handle_message(SerialMsgHeader* header, uint8_t* payload)
       break;
 
     case CMD_LOCK_PC:
-      reenable_keep_awake_on_pedal = keep_awake_timer.is_enabled();
+      reenable_keep_awake_on_pedal_activity = keep_awake_timer.is_enabled();
       keep_awake_timer.disable();
       Keyboard.press(MODIFIERKEY_LEFT_GUI);
       Keyboard.press(KEY_L);
@@ -459,18 +455,7 @@ setup()
   }
 }
 
-unsigned long previous_btn_check = 0;
-
-// TESTING: Measuring elapsed time between loop iterations.
-// 2025-03-31 Test Results:
-// (24MHz Debug Build) Avg = 4.6 µs; Max = 12 µs; Min = 4 µs
-// (600MHz Fastest with LTO) Avg = 0.1 µs; Max = 1 µs; Min = 0 µs
-// #define TEST_ELAPSED_TIME_IN_MAIN_LOOP
-#ifdef TEST_ELAPSED_TIME_IN_MAIN_LOOP
-const int TIMES_ARRAY_SIZE = 128;
-int idx_times_arr = 0;
-unsigned long times[TIMES_ARRAY_SIZE];
-#endif // TEST_ELAPSED_TIME_IN_MAIN_LOOP
+unsigned long last_poll_micros = 0;
 
 void
 loop()
@@ -487,7 +472,15 @@ loop()
   }
 #endif // USING_TINY_USB
 
+// TESTING: Measuring elapsed time between loop iterations.
+// 2025-03-31 Test Results:
+// (24MHz Debug Build) Avg = 4.6 µs; Max = 12 µs; Min = 4 µs
+// (600MHz Fastest with LTO) Avg = 0.1 µs; Max = 1 µs; Min = 0 µs
+// #define TEST_ELAPSED_TIME_IN_MAIN_LOOP
 #ifdef TEST_ELAPSED_TIME_IN_MAIN_LOOP
+  const int TIMES_ARRAY_SIZE = 128;
+  static int idx_times_arr = 0;
+  static unsigned long times[TIMES_ARRAY_SIZE];
   times[idx_times_arr++] = now;
   if (idx_times_arr >= 128) {
     for (size_t i = 0; i < TIMES_ARRAY_SIZE; i++) {
@@ -501,21 +494,18 @@ loop()
 
 #endif // TEST_ELAPSED_TIME_IN_MAIN_LOOP
 
-  if ((now - previous_btn_check) > POLL_PERIOD_US) {
-    previous_btn_check = now;
+  if ((now - last_poll_micros) > POLL_PERIOD_US) {
+    last_poll_micros = now;
 
     // Check each button.
     for (auto& btn : buttons) {
       if (btn.debounce(digitalRead(btn.pin), now)) {
         send_input(btn.mode, btn.should_engage(), btn);
-        keep_awake_timer.reset();
 
-        // TODO: test reenable keep awake
-        // Re-enable keep awake when pressing any pedal when this device was
-        // used to lock pc.
-        if (reenable_keep_awake_on_pedal) {
+        keep_awake_timer.reset();
+        if (reenable_keep_awake_on_pedal_activity) {
           keep_awake_timer.enable();
-          reenable_keep_awake_on_pedal = false;
+          reenable_keep_awake_on_pedal_activity = false;
         }
       }
 

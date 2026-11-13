@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-namespace my_timer {
+namespace grkTimer {
 class Timer
 {
 private:
